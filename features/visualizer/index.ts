@@ -1,0 +1,10 @@
+export { HeroScene } from './scenes/HeroScene';
+export { HeroVisualizer } from './components/HeroVisualizer';
+export { useParticleSystem } from './hooks/useParticleSystem';
+export { useAudioReactive } from './hooks/useAudioReactive';
+export { CircularMatrix } from './components/CircularMatrix';
+export { SystemAudioScene } from './scenes/SystemAudioScene';
+export { useSystemAudioReactive } from './hooks/useSystemAudioReactive';
+export { InterviewerOrb } from './components/InterviewerOrb';
+export { InterviewerScene } from './scenes/InterviewerScene';
+export { InterviewerSceneClient } from './scenes/InterviewerSceneClient';
