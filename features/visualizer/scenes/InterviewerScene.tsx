@@ -65,9 +65,9 @@ function SceneEffects() {
   );
 }
 
-export function InterviewerScene({color}: {color?: String}) {
+export function InterviewerScene({color}: {color?: string}) {
   const { start, stop, active, error, getFrequencyData, getAmplitude } = useSystemAudioReactive();
-  const [accentHex, setAccentHex] = useState<string>(color as String);
+  const [accentHex, setAccentHex] = useState<string>(color ?? '#ffffff');
   const activeHex = accentHex.toLowerCase();
   const orbColor = useMemo(() => hexToLinearColor(accentHex), [accentHex]);
 
@@ -159,7 +159,7 @@ export function InterviewerScene({color}: {color?: String}) {
           })}
         </div>
 
-        <div className="mt-3 flex items-center justify-between rounded-md border border-white/10 bg-white/[0.03] px-2 py-1.5">
+        <div className="mt-3 flex items-center justify-between rounded-md border border-white/10 bg-white/3 px-2 py-1.5">
           <span className="text-[10px] tracking-[0.18em] text-white/45">CUSTOM</span>
           <input
             type="color"

@@ -2,13 +2,16 @@
 import { InterviewerScene } from '@/features/visualizer/scenes/InterviewerScene';
 import { createClient } from '@/lib/supabase/server';
 import COLOR_PRESETS from '@/lib/constants/color';
+import type { Database } from '@/types/supabase';
+
+type InterviewerPersona = Database['public']['Tables']['interviewer_personas']['Row'];
 
 export async function InterviewerCard() {
   const supabase = await createClient();
   const { data: personaHR } = await supabase.from('interviewer_personas').select('*').eq('role','hr').limit(1);
   const { data: personaTech } = await supabase.from('interviewer_personas').select('*').eq('role','tech').limit(1);
   const { data: personaExec } = await supabase.from('interviewer_personas').select('*').eq('role','exec').limit(1);
-  const personas = [...personaHR!, ...personaTech!, ...personaExec!];
+  const personas: InterviewerPersona[] = [...(personaHR ?? []), ...(personaTech ?? []), ...(personaExec ?? [])];
 
   function get3UniqueRandoms(): number[] {
     const result: number[] = [];
