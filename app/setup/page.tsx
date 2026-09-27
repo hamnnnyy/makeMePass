@@ -1,52 +1,31 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
+import { Paperclip } from 'lucide-react';
 import type { InterviewMode } from '@/lib/constants/modes';
 import { MODE_LABELS } from '@/lib/constants/modes';
-import { createClient } from '@/lib/supabase/client';
 import createSession from '@/features/interview/server/createSession.server';
 
-export async function getOrganizations() {
-  const supabase = await createClient();
-  const { data, error } = await supabase.from('organizations').select('*');
-  if (error) throw error;
-  return data;
-}
-
-const ORG_GROUPS = [
+// code 는 organizations.code 와 같아야 한다. 로고: public/orgs/{code}.png
+const ORG_GROUPS: { label: string; orgs: { code: string; name: string }[] }[] = [
   {
     label: 'A. 금융',
     orgs: [
-      { id: 'KAMCO', name: '한국자산관리공사', abbr: '캠코', bg: '#7f1d1d' },
+      { code: 'KAMCO', name: '한국자산관리공사' },
+      { code: 'BOK', name: '한국은행' },
+      { code: 'HF', name: '한국주택금융공사' },
+      { code: 'HUG', name: '주택도시보증공사' },
     ],
   },
-  {
-    label: 'B. 에너지',
-    orgs: [
-      { id: 'KEPCO', name: '한국전력공사', abbr: 'KEPCO', bg: '#7f1d1d' },
-    ],
-  },
-  {
-    label: 'C. 주거, 인프라',
-    orgs: [
-      { id: 'LH', name: '한국토지주택공사', abbr: 'LH', bg: '#14532d' },
-    ],
-  },
-  {
-    label: 'D. 보건',
-    orgs: [
-      { id: 'HIRA', name: '건강보험심사평가원', abbr: 'HIRA', bg: '#3b0764' },
-    ],
-  },
+  { label: 'B. 에너지', orgs: [{ code: 'KEPCO', name: '한국전력공사' }] },
+  { label: 'C. 주거, 인프라', orgs: [{ code: 'LH', name: '한국토지주택공사' }] },
+  { label: 'D. 보건', orgs: [{ code: 'HIRA', name: '건강보험심사평가원' }] },
 ];
 
-const MODES: { id: InterviewMode; icon: string }[] = [
-  { id: 'realistic', icon: '∿' },
-  { id: 'casual',    icon: '◎' },
-  { id: 'boss',      icon: '◈' },
-  { id: 'cute',      icon: '✦' },
-];
+const MODES: InterviewMode[] = ['realistic', 'casual', 'boss', 'cute'];
 
 const MIN_QUESTIONS = 3;
 const MAX_QUESTIONS = 10;
@@ -80,6 +59,18 @@ export default function SetupPage() {
   const [questionCount, setQuestionCount] = useState(5);
   const [coverLetterFile, setCoverLetterFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [starting, setStarting] = useState(false);
+
+  // 꾸미기에서 정한 기본 모드를 미리 선택
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) return;
+      const { data } = await supabase.from('profiles').select('preferred_mode').eq('id', user.id).maybeSingle();
+      if (data?.preferred_mode) setMode((m) => m ?? data.preferred_mode);
+    });
+  }, []);
+  const [error, setError] = useState<string | null>(null);
 
   const canNext =
     (step === 1 && orgId !== null) ||
@@ -88,8 +79,15 @@ export default function SetupPage() {
 
   async function handleNext() {
     if (step < 3) { setStep(s => s + 1); return; }
-    // createSession이 서버에서 redirect()를 호출하므로 별도 라우팅 불필요
-    await createSession(orgId!, mode!, questionCount, coverLetterFile);
+    // createSession이 서버에서 redirect()를 호출하므로 성공하면 여기로 돌아오지 않는다
+    setStarting(true);
+    setError(null);
+    try {
+      await createSession(orgId!, mode!, questionCount, coverLetterFile);
+    } catch {
+      setError('면접을 준비하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+      setStarting(false);
+    }
   }
 
   function handleBack() {
@@ -122,27 +120,18 @@ export default function SetupPage() {
                     <span className="text-sm text-neutral-300">{group.label}</span>
                     <span className="text-xs text-neutral-500">{group.orgs.length} 기관</span>
                   </div>
-                  <div className="flex gap-4 flex-wrap">
+                  <div className="flex gap-4 flex-wrap justify-center">
                     {group.orgs.map((org) => (
                       <button
-                        key={org.id}
-                        onClick={() => setOrgId(org.id)}
-                        className={`flex flex-col items-center gap-2 p-1 rounded-xl transition-all ${
-                          orgId === org.id
-                            ? 'ring-2 ring-orange-500'
-                            : 'ring-1 ring-transparent hover:ring-neutral-600'
+                        key={org.code}
+                        onClick={() => setOrgId(org.code)}
+                        aria-pressed={orgId === org.code}
+                        className={`w-36 h-36 flex flex-col items-center justify-center gap-3 rounded-2xl bg-neutral-800/80 transition-all ${
+                          orgId === org.code ? 'ring-2 ring-orange-500' : 'hover:bg-neutral-700/80'
                         }`}
                       >
-                        {/* TODO: replace with <Image> from org logo URL */}
-                        <div
-                          className="w-20 h-20 rounded-xl flex items-center justify-center text-sm font-bold"
-                          style={{ backgroundColor: org.bg }}
-                        >
-                          {org.abbr}
-                        </div>
-                        <span className="text-xs text-neutral-300 max-w-[80px] text-center leading-tight">
-                          {org.name}
-                        </span>
+                        <Image src={`/orgs/${org.code}.png`} alt="" width={96} height={72} className="h-[72px] w-24 object-contain" />
+                        <span className="text-xs text-neutral-300">{org.name}</span>
                       </button>
                     ))}
                   </div>
@@ -155,21 +144,18 @@ export default function SetupPage() {
         {step === 2 && (
           <div>
             <h1 className="text-2xl font-bold mb-8">02. 모드 선택</h1>
-            <div className="flex gap-4 flex-wrap">
-              {MODES.map(({ id, icon }) => (
+            <div className="flex gap-4 flex-wrap justify-center">
+              {MODES.map((id) => (
                 <button
                   key={id}
                   onClick={() => setMode(id)}
-                  className={`flex flex-col items-center gap-2 p-1 rounded-xl transition-all ${
-                    mode === id
-                      ? 'ring-2 ring-orange-500'
-                      : 'ring-1 ring-transparent hover:ring-neutral-600'
+                  aria-pressed={mode === id}
+                  className={`w-24 h-28 flex flex-col items-center justify-center gap-3 rounded-2xl bg-neutral-800/80 transition-all ${
+                    mode === id ? 'ring-2 ring-orange-500' : 'hover:bg-neutral-700/80'
                   }`}
                 >
-                  <div className="w-24 h-24 rounded-xl bg-neutral-800 flex items-center justify-center text-3xl">
-                    {icon}
-                  </div>
-                  <span className="text-sm text-neutral-300">{MODE_LABELS[id]}</span>
+                  <Image src={`/modes/${id}.png`} alt="" width={40} height={40} />
+                  <span className="text-xs text-neutral-300">{MODE_LABELS[id]}</span>
                 </button>
               ))}
             </div>
@@ -210,7 +196,7 @@ export default function SetupPage() {
               {/* 자기소개서 */}
               <div>
                 <div className="flex justify-between items-center border-b border-neutral-700 pb-2 mb-6">
-                  <span className="text-sm text-neutral-300">B. 자기소개서</span>
+                  <span className="text-sm text-neutral-300">B. 자기소개서 <span className="text-neutral-500">(선택 · PDF 5MB 이하 · 첨부 시 자소서 기반 질문 출제)</span></span>
                   {coverLetterFile && (
                     <span className="text-xs text-neutral-500 truncate max-w-[200px]">
                       {coverLetterFile.name}
@@ -221,7 +207,7 @@ export default function SetupPage() {
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept=".pdf,.docx"
+                    accept="application/pdf"
                     className="hidden"
                     onChange={(e) => setCoverLetterFile(e.target.files?.[0] ?? null)}
                   />
@@ -229,9 +215,8 @@ export default function SetupPage() {
                     onClick={() => fileInputRef.current?.click()}
                     className="flex flex-col items-center gap-2 w-24 h-24 rounded-2xl bg-neutral-800 hover:bg-neutral-700 transition-colors justify-center"
                   >
-                    {/* TODO: replace with HeartBeat or Microphone icon from components/icons */}
-                    <span className="text-2xl">⊕</span>
-                    <span className="text-xs text-neutral-400">파일 첨부하기</span>
+                    <Paperclip className="w-6 h-6" aria-hidden />
+                    <span className="text-xs text-neutral-400">{coverLetterFile ? '파일 변경' : '파일 첨부하기'}</span>
                   </button>
                 </div>
               </div>
@@ -241,13 +226,14 @@ export default function SetupPage() {
       </div>
 
       {/* Bottom bar */}
-      <div className="px-8 py-6 flex justify-end">
+      <div className="px-8 py-6 flex justify-end items-center gap-4">
+        {error && <p className="text-xs text-red-400">{error}</p>}
         <button
           onClick={handleNext}
-          disabled={!canNext}
+          disabled={!canNext || starting}
           className="px-6 py-3 bg-orange-500 hover:bg-orange-400 disabled:bg-neutral-700 disabled:text-neutral-500 text-white text-sm font-medium rounded-full transition-colors"
         >
-          다음 →
+          {step < 3 ? '다음 →' : starting ? (coverLetterFile ? '자소서 분석 중...' : '준비 중...') : '면접 시작 →'}
         </button>
       </div>
     </div>

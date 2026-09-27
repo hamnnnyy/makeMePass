@@ -30,7 +30,11 @@ export default function SignUpPage() {
 
     setLoading(true);
     const supabase = createClient();
-    const { error } = await supabase.auth.signUp({ email, password });
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { display_name: name.trim() } },
+    });
 
     if (error) {
       setError(error.message === 'User already registered'

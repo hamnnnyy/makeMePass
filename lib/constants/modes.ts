@@ -5,7 +5,7 @@ export const MODE_LABELS: Record<InterviewMode, string> = {
   realistic: 'Realistic',
   casual: 'Casual',
   boss: 'Boss',
-  cute: '씹덕',
+  cute: 'Anime',
 };
 
 export const MODE_ACCENT: Record<InterviewMode, string> = {
