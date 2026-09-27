@@ -1,17 +1,10 @@
 export type AchievementRarity = 'common' | 'rare' | 'epic' | 'legendary';
 export type InterviewMode = 'realistic' | 'casual' | 'boss' | 'cute';
 export type InterviewerRole = 'hr' | 'tech' | 'exec';
-export type SessionStatus = 'in_progress' | 'completed' | 'abandoned';
-export type SessionResult = 'pending' | 'pass' | 'fail' | 'veto' | 'eliminated';
-export type VideoRetention = 'seven_days' | 'thirty_days' | 'forever' | 'never';
-export type QuestionCategory =
-  | 'self_introduction'
-  | 'motivation'
-  | 'job_competency'
-  | 'situation'
-  | 'ethics'
-  | 'organizational_fit'
-  | 'follow_up';
+export type SessionStatus = 'in_progress' | 'completed' | 'eliminated' | 'aborted';
+export type SessionResult = 'pending' | 'pass' | 'fail_veto' | 'fail_eliminate';
+export type VideoRetention = 'immediate_delete' | 'seven_days' | 'forever';
+export type QuestionCategory = 'personality' | 'job_competency' | 'values_ethics' | 'experience' | 'motivation';
 
 export interface Database {
   public: {
@@ -25,6 +18,7 @@ export interface Database {
           total_passes: number;
           video_retention: VideoRetention;
           preferred_mode: InterviewMode;
+          equipped_achievement_id: string | null;  // migrations/20260928000000_equipped_title.sql
           created_at: string;
           updated_at: string;
         };
@@ -74,7 +68,11 @@ export interface Database {
         };
         Insert: Omit<Database['public']['Tables']['interview_sessions']['Row'], 'id' | 'started_at'>;
         Update: Partial<Database['public']['Tables']['interview_sessions']['Insert']>;
-        Relationships: [];
+        Relationships: [
+          { foreignKeyName: 'interview_sessions_organization_id_fkey'; columns: ['organization_id']; isOneToOne: false; referencedRelation: 'organizations'; referencedColumns: ['id'] },
+          { foreignKeyName: 'interview_sessions_cover_letter_id_fkey'; columns: ['cover_letter_id']; isOneToOne: false; referencedRelation: 'cover_letters'; referencedColumns: ['id'] },
+          { foreignKeyName: 'interview_sessions_elimination_question_id_fkey'; columns: ['elimination_question_id']; isOneToOne: false; referencedRelation: 'questions'; referencedColumns: ['id'] },
+        ];
       };
       questions: {
         Row: {
@@ -126,6 +124,19 @@ export interface Database {
         Insert: Omit<Database['public']['Tables']['session_questions']['Row'], 'id' | 'asked_at'>;
         Update: Partial<Database['public']['Tables']['session_questions']['Insert']>;
         Relationships: [];
+      };
+      question_organizations: {
+        Row: {
+          question_id: string;
+          organization_id: string;
+          weight: number | null;
+        };
+        Insert: Database['public']['Tables']['question_organizations']['Row'];
+        Update: Partial<Database['public']['Tables']['question_organizations']['Row']>;
+        Relationships: [
+          { foreignKeyName: 'question_organizations_question_id_fkey'; columns: ['question_id']; isOneToOne: false; referencedRelation: 'questions'; referencedColumns: ['id'] },
+          { foreignKeyName: 'question_organizations_organization_id_fkey'; columns: ['organization_id']; isOneToOne: false; referencedRelation: 'organizations'; referencedColumns: ['id'] },
+        ];
       };
       cover_letters: {
         Row: {
@@ -181,7 +192,9 @@ export interface Database {
         };
         Insert: Omit<Database['public']['Tables']['user_achievements']['Row'], 'id' | 'unlocked_at'>;
         Update: Partial<Database['public']['Tables']['user_achievements']['Insert']>;
-        Relationships: [];
+        Relationships: [
+          { foreignKeyName: 'user_achievements_achievement_id_fkey'; columns: ['achievement_id']; isOneToOne: false; referencedRelation: 'achievements_master'; referencedColumns: ['id'] },
+        ];
       };
       interviewer_personas: {
         Row: {
@@ -207,6 +220,18 @@ export interface Database {
         Insert: Omit<Database['public']['Tables']['interviewer_personas']['Row'], 'id'>;
         Update: Partial<Database['public']['Tables']['interviewer_personas']['Insert']>;
         Relationships: [];
+      };
+      user_unlocked_personas: {
+        Row: {
+          user_id: string;
+          persona_id: string;
+          unlocked_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['user_unlocked_personas']['Row'], 'unlocked_at'>;
+        Update: Partial<Database['public']['Tables']['user_unlocked_personas']['Insert']>;
+        Relationships: [
+          { foreignKeyName: 'user_unlocked_personas_persona_id_fkey'; columns: ['persona_id']; isOneToOne: false; referencedRelation: 'interviewer_personas'; referencedColumns: ['id'] },
+        ];
       };
       daily_challenges: {
         Row: {
