@@ -65,7 +65,8 @@ function SceneEffects() {
   );
 }
 
-export function InterviewerScene({color}: {color?: string}) {
+// controls=false 면 면접 화면용: 캔버스만 그리고 오디오 공유·색상 패널은 숨긴다
+export function InterviewerScene({ color, controls = true }: { color?: string; controls?: boolean }) {
   const { start, stop, active, error, getFrequencyData, getAmplitude } = useSystemAudioReactive();
   const [accentHex, setAccentHex] = useState<string>(color ?? '#ffffff');
   const activeHex = accentHex.toLowerCase();
@@ -96,6 +97,8 @@ export function InterviewerScene({color}: {color?: string}) {
 
         <SceneEffects />
       </Canvas>
+
+      {controls && (<>
 
       {!active && !error && (
         <button
@@ -170,6 +173,7 @@ export function InterviewerScene({color}: {color?: string}) {
           />
         </div>
       </div>
+      </>)}
     </div>
   );
 }

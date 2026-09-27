@@ -68,17 +68,18 @@ export function SelfCam({ videoRef, resultRef, metrics }: Props) {
         autoPlay
         muted
         playsInline
-        className="w-full h-full object-cover"
+        className="w-full h-full object-cover -scale-x-100"
       />
       <canvas
         ref={canvasRef}
-        className="absolute inset-0 w-full h-full pointer-events-none"
+        className="absolute inset-0 w-full h-full pointer-events-none -scale-x-100"
       />
       {/* 지표 오버레이 */}
       {metrics.detected && (
         <div className="absolute bottom-2 left-2 flex gap-2">
           <MetricPill label="시선" value={metrics.gazeScore} />
           <MetricPill label="표정" value={metrics.smileScore} />
+          <MetricPill label="자세" value={metrics.stability} />
         </div>
       )}
     </div>
