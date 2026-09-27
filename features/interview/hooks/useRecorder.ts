@@ -1,45 +1,38 @@
 'use client';
 
-import { useRef, useState } from 'react';
-
-export type RecorderState = 'idle' | 'recording' | 'stopped';
+import { useCallback, useRef, useState } from 'react';
 
 export function useRecorder() {
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
-  const [state, setState] = useState<RecorderState>('idle');
-  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const [recording, setRecording] = useState(false);
 
-  async function start() {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  const start = useCallback(async () => {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true },
+    });
     const recorder = new MediaRecorder(stream);
-    chunksRef.current = [];
-
-    recorder.ondataavailable = (e) => {
-      if (e.data.size > 0) chunksRef.current.push(e.data);
-    };
-
-    recorder.onstop = () => {
-      const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
-      setAudioBlob(blob);
-      stream.getTracks().forEach((t) => t.stop());
-    };
-
-    mediaRecorderRef.current = recorder;
     recorder.start();
-    setState('recording');
-  }
+    recorderRef.current = recorder;
+    setRecording(true);
+  }, []);
 
-  function stop() {
-    mediaRecorderRef.current?.stop();
-    mediaRecorderRef.current = null;
-    setState('stopped');
-  }
+  // 녹음을 멈추고 전체 오디오를 돌려준다
+  const stop = useCallback((): Promise<Blob> => {
+    const recorder = recorderRef.current;
+    recorderRef.current = null;
+    setRecording(false);
+    if (!recorder) return Promise.resolve(new Blob());
 
-  function reset() {
-    setAudioBlob(null);
-    setState('idle');
-  }
+    return new Promise((resolve) => {
+      const chunks: Blob[] = [];
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+      recorder.onstop = () => {
+        recorder.stream.getTracks().forEach((t) => t.stop());
+        resolve(new Blob(chunks, { type: recorder.mimeType }));
+      };
+      recorder.stop();
+    });
+  }, []);
 
-  return { state, audioBlob, start, stop, reset };
+  return { recording, start, stop };
 }

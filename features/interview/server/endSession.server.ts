@@ -2,59 +2,52 @@
 
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import type { SessionResult } from '@/types/supabase';
+import { judge, type Thresholds } from '../logic/scoring';
 
 export async function endSession(sessionId: string) {
   const supabase = await createClient();
 
-  // Get final favor scores from the last answered question
-  const { data: lastQ } = await supabase
-    .from('session_questions')
-    .select('hr_after, tech_after, exec_after')
-    .eq('session_id', sessionId)
-    .not('answered_at', 'is', null)
-    .order('sequence', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const [{ data: lastQ }, { data: session }] = await Promise.all([
+    supabase
+      .from('session_questions')
+      .select('hr_after, tech_after, exec_after')
+      .eq('session_id', sessionId)
+      .not('answered_at', 'is', null)
+      .order('answered_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('interview_sessions')
+      .select('started_at, status, organizations(pass_threshold, eliminate_threshold)')
+      .eq('id', sessionId)
+      .single(),
+  ]);
 
-  // Get organization thresholds
-  const { data: session } = await supabase
-    .from('interview_sessions')
-    .select('organization_id')
-    .eq('id', sessionId)
-    .single();
+  if (!session) throw new Error('세션을 찾을 수 없습니다.');
+  if (session.status !== 'in_progress') redirect(`/result/${sessionId}`);
 
-  let result: SessionResult = 'pending';
-  const hr = lastQ?.hr_after ?? 50;
-  const tech = lastQ?.tech_after ?? 50;
-  const exec = lastQ?.exec_after ?? 50;
-
-  if (session) {
-    const { data: org } = await supabase
-      .from('organizations')
-      .select('pass_threshold, veto_threshold, eliminate_threshold')
-      .eq('id', session.organization_id)
-      .single();
-
-    if (org) {
-      const min = Math.min(hr, tech, exec);
-      if (min < org.eliminate_threshold) result = 'eliminated';
-      else if (min < org.veto_threshold) result = 'veto';
-      else if (Math.min(hr, tech, exec) >= org.pass_threshold) result = 'pass';
-      else result = 'fail';
-    }
-  }
+  const favor = { hr: lastQ?.hr_after ?? 50, tech: lastQ?.tech_after ?? 50, exec: lastQ?.exec_after ?? 50 };
+  const org = session.organizations as unknown as Thresholds;
+  // 한 문항도 답하지 않고 나가면 중도 포기
+  const { result, lowRole } = lastQ ? judge(favor, org) : { result: 'pending' as const, lowRole: null };
 
   await supabase.from('interview_sessions').update({
-    status: 'completed' as const,
+    status: !lastQ ? 'aborted' : result === 'fail_eliminate' ? 'eliminated' : 'completed',
     result,
+    veto_role: lowRole,
     ended_at: new Date().toISOString(),
-    ...(lastQ ? {
-      hr_final_score: hr,
-      tech_final_score: tech,
-      exec_final_score: exec,
-    } : {}),
+    duration_seconds: Math.round((Date.now() - new Date(session.started_at).getTime()) / 1000),
   }).eq('id', sessionId);
+
+  // DB 트리거가 status 변경 시 마지막 sequence 문항 기준으로 최종 점수를 다시 쓰는데,
+  // 탈락·중단이면 그 문항이 미답변이라 null 이 된다. 상태를 바꾼 뒤 실제 마지막 답변 값으로 덮어쓴다.
+  if (lastQ) {
+    await supabase.from('interview_sessions').update({
+      hr_final_score: favor.hr,
+      tech_final_score: favor.tech,
+      exec_final_score: favor.exec,
+    }).eq('id', sessionId);
+  }
 
   redirect(`/result/${sessionId}`);
 }
