@@ -30,6 +30,7 @@ export interface Database {
         };
         Insert: Omit<Database['public']['Tables']['profiles']['Row'], 'created_at' | 'updated_at' | 'total_sessions' | 'total_passes'>;
         Update: Partial<Database['public']['Tables']['profiles']['Insert']>;
+        Relationships: [];
       };
       organizations: {
         Row: {
@@ -49,6 +50,7 @@ export interface Database {
         };
         Insert: Omit<Database['public']['Tables']['organizations']['Row'], 'id' | 'created_at'>;
         Update: Partial<Database['public']['Tables']['organizations']['Insert']>;
+        Relationships: [];
       };
       interview_sessions: {
         Row: {
@@ -72,6 +74,7 @@ export interface Database {
         };
         Insert: Omit<Database['public']['Tables']['interview_sessions']['Row'], 'id' | 'started_at'>;
         Update: Partial<Database['public']['Tables']['interview_sessions']['Insert']>;
+        Relationships: [];
       };
       questions: {
         Row: {
@@ -89,6 +92,7 @@ export interface Database {
         };
         Insert: Omit<Database['public']['Tables']['questions']['Row'], 'id' | 'created_at'>;
         Update: Partial<Database['public']['Tables']['questions']['Insert']>;
+        Relationships: [];
       };
       session_questions: {
         Row: {
@@ -121,6 +125,7 @@ export interface Database {
         };
         Insert: Omit<Database['public']['Tables']['session_questions']['Row'], 'id' | 'asked_at'>;
         Update: Partial<Database['public']['Tables']['session_questions']['Insert']>;
+        Relationships: [];
       };
       cover_letters: {
         Row: {
@@ -135,6 +140,7 @@ export interface Database {
         };
         Insert: Omit<Database['public']['Tables']['cover_letters']['Row'], 'id' | 'created_at' | 'updated_at'>;
         Update: Partial<Database['public']['Tables']['cover_letters']['Insert']>;
+        Relationships: [];
       };
       streaks: {
         Row: {
@@ -147,6 +153,7 @@ export interface Database {
         };
         Insert: Omit<Database['public']['Tables']['streaks']['Row'], 'updated_at'>;
         Update: Partial<Database['public']['Tables']['streaks']['Insert']>;
+        Relationships: [];
       };
       achievements_master: {
         Row: {
@@ -162,6 +169,7 @@ export interface Database {
         };
         Insert: Omit<Database['public']['Tables']['achievements_master']['Row'], 'id'>;
         Update: Partial<Database['public']['Tables']['achievements_master']['Insert']>;
+        Relationships: [];
       };
       user_achievements: {
         Row: {
@@ -173,6 +181,7 @@ export interface Database {
         };
         Insert: Omit<Database['public']['Tables']['user_achievements']['Row'], 'id' | 'unlocked_at'>;
         Update: Partial<Database['public']['Tables']['user_achievements']['Insert']>;
+        Relationships: [];
       };
       interviewer_personas: {
         Row: {
@@ -197,6 +206,7 @@ export interface Database {
         };
         Insert: Omit<Database['public']['Tables']['interviewer_personas']['Row'], 'id'>;
         Update: Partial<Database['public']['Tables']['interviewer_personas']['Insert']>;
+        Relationships: [];
       };
       daily_challenges: {
         Row: {
@@ -209,7 +219,12 @@ export interface Database {
         };
         Insert: Omit<Database['public']['Tables']['daily_challenges']['Row'], 'id'>;
         Update: Partial<Database['public']['Tables']['daily_challenges']['Insert']>;
+        Relationships: [];
       };
     };
+    Views: Record<string, never>;
+    Functions: Record<string, never>;
+    Enums: Record<string, never>;
+    CompositeTypes: Record<string, never>;
   };
 }
