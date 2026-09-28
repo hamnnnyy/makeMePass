@@ -96,7 +96,7 @@ export function SessionView({
   const timerFmt = useTimer(phase !== 'lobby' && phase !== 'ending');
   const { videoRef, error: camError } = useMediaStream();
   const recorder = useRecorder();
-  const { speak, prefetch, getLevel } = useTTS();
+  const { speak, prefetch, getLevel } = useTTS(session.mode);
   const [speaker, setSpeaker] = useState<Speaker | null>(null);
   const [peerLine, setPeerLine] = useState<{ peer: PeerId; text: string } | null>(null);  // AI 지원자 자막
   const hasPeers = PEER_TYPES.includes(session.interview_type);

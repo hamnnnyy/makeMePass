@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { getCachedAudio, setCachedAudio } from './audioCache';
 import type { Speaker } from '@/lib/constants/peers';
+import type { InterviewMode } from '@/lib/constants/modes';
 
 // 브라우저 음성은 목소리가 하나라 높낮이·빠르기로 사람을 구분한다
 const PITCH: Record<Speaker, number> = { hr: 1.1, tech: 0.9, exec: 0.8, p1: 1.0, p2: 1.35 };
@@ -23,7 +24,8 @@ function speakWithBrowser(text: string, role: Speaker): Promise<void> {
   });
 }
 
-export function useTTS() {
+// mode: 모드마다 면접관 캐릭터와 목소리가 다르다
+export function useTTS(mode: InterviewMode) {
   const [speaking, setSpeaking] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const ctxRef = useRef<AudioContext | null>(null);
@@ -70,12 +72,12 @@ export function useTTS() {
     setSpeaking(true);
 
     try {
-      const cacheKey = `${role}:${text}`;
+      const cacheKey = `${mode}:${role}:${text}`;
       let src = getCachedAudio(cacheKey) ?? null;
 
       if (!src) {
         const { ttsSpeak } = await import('./ttsSpeak.server');
-        src = await ttsSpeak(text, role).catch(() => null);
+        src = await ttsSpeak(text, role, mode).catch(() => null);
         if (src) setCachedAudio(cacheKey, src);
       }
 
@@ -84,7 +86,10 @@ export function useTTS() {
         return;
       }
 
-      const audio = new Audio(src);
+      const audio = new Audio();
+      // 캐시 음성은 Supabase 공개 URL 이라, 분석기에 연결하려면 CORS 로 받아야 소리가 난다
+      if (src.startsWith('http')) audio.crossOrigin = 'anonymous';
+      audio.src = src;
       audioRef.current = audio;
       await attachAnalyser(audio);
       const played = await new Promise<boolean>((resolve) => {
@@ -98,16 +103,16 @@ export function useTTS() {
       analyserRef.current = null;
       setSpeaking(false);
     }
-  }, [stop, attachAnalyser]);
+  }, [stop, attachAnalyser, mode]);
 
   // 답변하는 동안 다음 질문 음성을 미리 받아 둔다 (Gemini TTS 는 한 문장에 수 초 걸림)
   const prefetch = useCallback(async (text: string, role: Speaker) => {
-    const cacheKey = `${role}:${text}`;
+    const cacheKey = `${mode}:${role}:${text}`;
     if (getCachedAudio(cacheKey)) return;
     const { ttsSpeak } = await import('./ttsSpeak.server');
-    const src = await ttsSpeak(text, role).catch(() => null);
+    const src = await ttsSpeak(text, role, mode).catch(() => null);
     if (src) setCachedAudio(cacheKey, src);
-  }, []);
+  }, [mode]);
 
   return { speak, stop, prefetch, speaking, getLevel };
 }
