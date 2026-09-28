@@ -18,6 +18,8 @@ interface Feedback {
   improvement?: string;
   nonverbalFeedback?: string;
   posture?: number | null;
+  orgFit?: number | null;
+  orgFitReason?: string;
   reasons?: Partial<Record<InterviewerRole, string>> | null;
   voices?: Partial<Record<InterviewerRole, string>> | null;
   verbalDeltas?: Record<InterviewerRole, number>;
@@ -112,6 +114,7 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
   };
   const fillers = answered.reduce((sum, q) => sum + (q.filler_count ?? 0), 0);
   const postureAvg = avg(answered.map((q) => fbOf(q)?.posture));
+  const orgFitAvg = avg(answered.map((q) => fbOf(q)?.orgFit));
 
   // 문항 번호: 꼬리질문은 부모 번호를 따른다
   const labelOf = new Map<string, string>();
@@ -243,6 +246,7 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
                 <ScoreBar key={key} label={label} value={avg(answered.map((q) => q[key]))} />
               ))}
               {g.title === '비언어' && <ScoreBar label="자세" value={postureAvg} />}
+              {g.title === '언어' && orgFitAvg !== null && <ScoreBar label="기관 적합" value={orgFitAvg} />}
               {g.title === '언어' && (
                 <div className="flex justify-between text-xs">
                   <span className="text-neutral-400">군말</span>
@@ -341,11 +345,17 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
                       })}
                     </div>
 
-                    {(fb?.strengths || fb?.improvement || fb?.nonverbalFeedback) && (
+                    {(fb?.strengths || fb?.improvement || fb?.nonverbalFeedback || fb?.orgFitReason) && (
                       <ul className="flex flex-col gap-1.5 text-xs leading-relaxed">
                         {fb?.strengths && <li className="flex gap-2"><span className="text-green-400 shrink-0">잘한 점</span><span className="text-neutral-300">{fb.strengths}</span></li>}
                         {fb?.improvement && <li className="flex gap-2"><span className="text-pink-400 shrink-0">고칠 점</span><span className="text-neutral-300">{fb.improvement}</span></li>}
                         {fb?.nonverbalFeedback && <li className="flex gap-2"><span className="text-sky-400 shrink-0">태도</span><span className="text-neutral-300">{fb.nonverbalFeedback}</span></li>}
+                        {fb?.orgFitReason && (
+                          <li className="flex gap-2">
+                            <span className="text-amber-300 shrink-0">기관 적합 {fb.orgFit ?? ''}</span>
+                            <span className="text-neutral-300">{fb.orgFitReason}</span>
+                          </li>
+                        )}
                       </ul>
                     )}
 

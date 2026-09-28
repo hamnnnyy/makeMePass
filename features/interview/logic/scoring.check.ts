@@ -1,7 +1,7 @@
 // 실행: bun features/interview/logic/scoring.check.ts
 import assert from 'node:assert/strict';
 import { analyzeSamples } from './audio';
-import { scoreNonVerbal, scoreTiming, finalDeltas, applyDeltas, judge } from './scoring';
+import { scoreNonVerbal, scoreTiming, finalDeltas, applyDeltas, judge, withOrgFit } from './scoring';
 
 // 오디오: 1초 침묵 + 2초 발화 + 5초 침묵 + 1초 발화
 const rate = 16000;
@@ -38,6 +38,11 @@ assert.ok(d.hr < d.tech && d.exec === d.hr, JSON.stringify(d));
 const t1 = finalDeltas({ hr: 2, tech: 2, exec: 2 }, { eyeContact: null, expression: 100, posture: 100 }, null);
 assert.deepEqual(t1, { hr: 6, tech: 4, exec: 6 });
 assert.deepEqual(applyDeltas({ hr: 95, tech: 3, exec: 50 }, { hr: 10, tech: -10, exec: 0 }), { hr: 100, tech: 0, exec: 50 });
+
+// 기관 적합도: 보통(50)이면 그대로, 높으면 임원이 가장 크게 오른다
+assert.deepEqual(withOrgFit({ hr: 1, tech: 1, exec: 1 }, 50), { hr: 1, tech: 1, exec: 1 });
+assert.deepEqual(withOrgFit({ hr: 0, tech: 0, exec: 0 }, 100), { hr: 1.25, tech: 1.25, exec: 2.5 });
+assert.deepEqual(withOrgFit({ hr: 0, tech: 0, exec: 0 }, null), { hr: 0, tech: 0, exec: 0 });
 
 // 판정
 const t = { pass_threshold: 60, eliminate_threshold: 25 };

@@ -11,7 +11,8 @@ import { PEERS } from '@/lib/constants/peers';
 import type { InterviewMode } from '@/lib/constants/modes';
 import type { NonVerbalSummary } from '@/features/mediapipe/logic/nonVerbal';
 import type { AudioStats } from '../logic/audio';
-import { scoreNonVerbal, scoreTiming, finalDeltas, applyDeltas, judge, type RoleValues } from '../logic/scoring';
+import { scoreNonVerbal, scoreTiming, finalDeltas, applyDeltas, judge, withOrgFit, type RoleValues } from '../logic/scoring';
+import { orgBrief } from '../logic/orgBrief';
 
 export type FavorState = RoleValues;
 
@@ -29,6 +30,8 @@ interface Verbal {
   score_content: number;
   score_fluency: number;
   deltas: RoleValues;
+  org_fit: number;
+  org_fit_reason: string;
   delta_reasons: Record<InterviewerRole, string>;
   inner_voices: Record<InterviewerRole, string>;
   strengths: string;
@@ -64,6 +67,8 @@ const VERBAL_SCHEMA = {
       properties: { hr: { type: 'string' }, tech: { type: 'string' }, exec: { type: 'string' } },
       required: ['hr', 'tech', 'exec'],
     },
+    org_fit: { type: 'integer', minimum: 0, maximum: 100, description: '기관 적합도: 답변이 [기관] 정보의 인재상·핵심가치·주요 사업·최근 현안과 얼마나 맞닿는가. 기관과 무관한 일반론 50, 기관 특징을 구체적으로 연결하면 70 이상, 기관 사업을 잘못 알거나 인재상과 반대되는 태도면 30 이하' },
+    org_fit_reason: { type: 'string', description: '기관 적합도 근거 한 문장. 어떤 인재상·가치·사업과 연결됐는지, 또는 무엇이 빠졌는지' },
     strengths: { type: 'string', description: '잘한 점 한 문장' },
     improvement: { type: 'string', description: '고칠 점 한 문장. 가능하면 더 나은 표현 예시 포함' },
     nonverbal_feedback: { type: 'string', description: '[비언어 측정] 값을 근거로 시선·표정·자세·긴장도에 대한 조언 한 문장. 측정값이 없으면 빈 문자열' },
@@ -75,7 +80,7 @@ const VERBAL_SCHEMA = {
       required: ['ask', 'role', 'question'],
     },
   },
-  required: ['transcript', 'filler_count', 'score_content', 'score_fluency', 'deltas', 'delta_reasons', 'inner_voices', 'strengths', 'improvement', 'nonverbal_feedback', 'reaction', 'follow_up'],
+  required: ['transcript', 'filler_count', 'score_content', 'score_fluency', 'deltas', 'org_fit', 'org_fit_reason', 'delta_reasons', 'inner_voices', 'strengths', 'improvement', 'nonverbal_feedback', 'reaction', 'follow_up'],
 };
 
 const num = (v: unknown, lo: number, hi: number) =>
@@ -183,8 +188,7 @@ ${isText
   ? '지원자가 이번 답변을 텍스트로 입력했습니다. 내용만 평가하고, transcript 에는 입력문을 그대로, filler_count 는 0, score_fluency 는 0 으로 두세요.'
   : '첨부된 음성은 지원자의 답변입니다. 음성을 직접 듣고 내용과 전달력을 함께 평가하세요.'}
 
-[기관] ${org.name_ko}${org.description ? ` — ${org.description}` : ''}
-${org.core_values ? `[핵심가치/인재상] ${JSON.stringify(org.core_values)} ${JSON.stringify(org.talent_profile ?? '')}` : ''}
+${orgBrief(org)}
 ${coverLetter ? `[지원자 자기소개서 요약] ${JSON.stringify(coverLetter)}` : ''}
 [면접 유형] ${INTERVIEW_TYPE_INFO[session.interview_type ?? 'general'].focus}
 ${session.group_setup ? `[${session.interview_type === 'debate' ? '논제' : '과제'}] ${session.group_setup.topic}${session.group_setup.userSide ? `\n지원자(평가 대상)는 ${session.group_setup.userSide} 측, 다른 지원자들은 ${session.group_setup.peerSide} 측` : ''}` : ''}
@@ -205,6 +209,7 @@ ${isText ? `${nvLine}\n[지원자 답변(텍스트 입력)]\n${answerText}` : `$
 
 평가 규칙:
 - 실제 공기업 면접처럼 엄격하게. 평범한 답변은 deltas 0 근처, 인상적이면 +, 부실하면 -.
+- 이 기관의 면접이다. 면접관마다 기관 특징을 기준으로 본다: exec 는 인재상·핵심가치·미션 부합, tech 는 주요 사업과 최근 현안 이해, hr 는 조직문화에 맞는 태도. 어느 기관에나 할 수 있는 일반론은 가점하지 않는다.
 - 답변이 없거나 질문과 무관하면 score_content 0~20, deltas는 -8 이하.
 - 이전 답변과 모순되거나 자소서와 다르면 감점하고 꼬리질문으로 확인한다.
 - ${!allowFollowUp ? '이번 질문에는 꼬리질문을 하지 않는다 (follow_up.ask=false).'
@@ -233,9 +238,11 @@ ${isText ? `${nvLine}\n[지원자 답변(텍스트 입력)]\n${answerText}` : `$
   });
   const v = JSON.parse(response.text ?? '{}') as Verbal;
 
-  const verbalDeltas: RoleValues = {
+  // 답변 평가 + 기관 적합도 가감
+  const orgFit = typeof v.org_fit === 'number' ? int(v.org_fit, 0, 100) : null;
+  const verbalDeltas: RoleValues = withOrgFit({
     hr: num(v.deltas?.hr, -10, 10), tech: num(v.deltas?.tech, -10, 10), exec: num(v.deltas?.exec, -10, 10),
-  };
+  }, orgFit);
   // 텍스트 답변도 표정·자세는 평가한다 (타이핑하느라 아래를 보므로 시선은 제외)
   const nvScores = hasMeta ? { ...nvAll, eyeContact: isText ? null : nvAll.eyeContact } : null;
   const timing = isText ? null : scoreTiming(audio, kind);
@@ -267,6 +274,7 @@ ${isText ? `${nvLine}\n[지원자 답변(텍스트 입력)]\n${answerText}` : `$
       posture: nvScores?.posture ?? null,
       // 복기에서 호감도 변화를 '답변 내용' vs '태도·시간 보정'으로 나눠 보여주기 위해 저장
       reasons: v.delta_reasons ?? null,
+      orgFit, orgFitReason: v.org_fit_reason ?? '',
       voices: v.inner_voices ?? null,  // 복기에서 면접관 속마음 말풍선으로 보여준다
       verbalDeltas: {
         hr: Math.round(verbalDeltas.hr), tech: Math.round(verbalDeltas.tech), exec: Math.round(verbalDeltas.exec),

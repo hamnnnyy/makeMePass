@@ -36,6 +36,7 @@ export interface Database {
           talent_profile: Record<string, unknown> | null;
           core_values: Record<string, unknown> | null;
           positions: Record<string, unknown> | null;
+          category: string | null;  // migrations/20260928030000
           pass_threshold: number;
           veto_threshold: number;
           eliminate_threshold: number;

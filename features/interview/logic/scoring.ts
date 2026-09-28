@@ -63,6 +63,18 @@ export function finalDeltas(
   return out;
 }
 
+// 기관 적합도(0-100, 50 = 보통)를 답변 점수에 더한다. 임원은 인재상·가치 부합을 가장 크게 본다.
+const ORG_WEIGHT: RoleValues = { hr: 0.5, tech: 0.5, exec: 1 };
+export function withOrgFit(verbal: RoleValues, orgFit: number | null): RoleValues {
+  if (orgFit === null) return verbal;
+  const adj = (clamp(orgFit, 0, 100) - 50) / 20;  // -2.5 ~ +2.5
+  return {
+    hr: verbal.hr + ORG_WEIGHT.hr * adj,
+    tech: verbal.tech + ORG_WEIGHT.tech * adj,
+    exec: verbal.exec + ORG_WEIGHT.exec * adj,
+  };
+}
+
 export function applyDeltas(favor: RoleValues, delta: RoleValues): RoleValues {
   return {
     hr: clamp(favor.hr + delta.hr, 0, 100),

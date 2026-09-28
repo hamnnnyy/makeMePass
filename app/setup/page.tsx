@@ -8,24 +8,9 @@ import { Paperclip } from 'lucide-react';
 import type { InterviewMode } from '@/lib/constants/modes';
 import { MODE_LABELS } from '@/lib/constants/modes';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { OrgPicker } from '@/features/interview/components/OrgPicker';
 import createSession from '@/features/interview/server/createSession.server';
 import { INTERVIEW_TYPES, INTERVIEW_TYPE_INFO, TURN_TYPES, type InterviewType } from '@/lib/constants/interviewTypes';
-
-// code 는 organizations.code 와 같아야 한다. 로고: public/orgs/{code}.png
-const ORG_GROUPS: { label: string; orgs: { code: string; name: string }[] }[] = [
-  {
-    label: '금융',
-    orgs: [
-      { code: 'KAMCO', name: '한국자산관리공사' },
-      { code: 'BOK', name: '한국은행' },
-      { code: 'HF', name: '한국주택금융공사' },
-      { code: 'HUG', name: '주택도시보증공사' },
-    ],
-  },
-  { label: '에너지', orgs: [{ code: 'KEPCO', name: '한국전력공사' }] },
-  { label: '주거, 인프라', orgs: [{ code: 'LH', name: '한국토지주택공사' }] },
-  { label: '보건', orgs: [{ code: 'HIRA', name: '건강보험심사평가원' }] },
-];
 
 const MODES: InterviewMode[] = ['realistic', 'casual', 'boss', 'cute'];
 
@@ -57,6 +42,7 @@ export default function SetupPage() {
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [orgId, setOrgId] = useState<string | null>(null);
+  const [orgName, setOrgName] = useState<string | null>(null);
   const [mode, setMode] = useState<InterviewMode | null>(null);
   const [interviewType, setInterviewType] = useState<InterviewType>('general');
   const [questionCount, setQuestionCount] = useState(5);
@@ -110,31 +96,7 @@ export default function SetupPage() {
         {step === 1 && (
           <div>
             <h2 className="text-3xl mb-8">어느 기관에 지원하나요?</h2>
-            <div className="space-y-8">
-              {ORG_GROUPS.map((group) => (
-                <div key={group.label}>
-                  <div className="flex justify-between items-center border-b border-neutral-700 pb-2 mb-4">
-                    <span className="text-sm text-neutral-300">{group.label}</span>
-                    <span className="text-xs text-neutral-500">{group.orgs.length} 기관</span>
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                    {group.orgs.map((org) => (
-                      <button
-                        key={org.code}
-                        onClick={() => setOrgId(org.code)}
-                        aria-pressed={orgId === org.code}
-                        className={`aspect-[4/3] flex flex-col items-center justify-center gap-3 rounded-2xl bg-neutral-800/80 transition-all ${
-                          orgId === org.code ? 'ring-2 ring-pink-500 bg-pink-500/10' : 'hover:bg-neutral-700/80'
-                        }`}
-                      >
-                        <Image src={`/orgs/${org.code}.png`} alt="" width={96} height={72} className="h-[72px] w-24 object-contain" />
-                        <span className="text-xs text-neutral-300">{org.name}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
+            <OrgPicker value={orgId} onChange={(o) => { setOrgId(o.code); setOrgName(o.name_ko); }} />
           </div>
         )}
 
@@ -249,7 +211,7 @@ export default function SetupPage() {
       <div className="fixed inset-x-0 bottom-0 z-20 bg-night/90 backdrop-blur border-t border-neutral-800">
         <div className="max-w-4xl mx-auto px-6 md:px-8 py-4 flex items-center gap-4">
           <p className="text-sm text-neutral-400 truncate flex-1">
-            {[ORG_GROUPS.flatMap((g) => g.orgs).find((o) => o.code === orgId)?.name, mode && `${MODE_LABELS[mode]} 모드`, step === 3 && INTERVIEW_TYPE_INFO[interviewType].label]
+            {[orgName, mode && `${MODE_LABELS[mode]} 모드`, step === 3 && INTERVIEW_TYPE_INFO[interviewType].label]
               .filter(Boolean).join(' · ') || '기관을 골라 주세요'}
           </p>
           {error && <p className="text-xs text-red-400">{error}</p>}

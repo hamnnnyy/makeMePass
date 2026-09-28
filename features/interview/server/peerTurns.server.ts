@@ -5,6 +5,7 @@ import { MODELS } from '@/lib/gemini/models';
 import { createClient } from '@/lib/supabase/server';
 import { INTERVIEW_TYPE_INFO } from '@/lib/constants/interviewTypes';
 import { PEERS, type PeerTurn } from '@/lib/constants/peers';
+import { orgBrief } from '../logic/orgBrief';
 
 // 다대다에서 AI 지원자 답변 수준을 섞는다. 늘 잘하거나 늘 못하면 비교가 안 된다.
 const LEVELS = ['인상적인 답변 (구체적 경험과 수치, 기관 연결)', '평범한 답변 (무난하지만 구체성 부족)', '아쉬운 답변 (추상적이거나 질문 의도와 조금 어긋남)'];
@@ -34,7 +35,7 @@ export async function getPeerTurns(sessionQuestionId: string): Promise<Required<
 
   const [{ data: session }, { data: history }] = await Promise.all([
     supabase.from('interview_sessions')
-      .select('interview_type, group_setup, organizations(name_ko, description)')
+      .select('interview_type, group_setup, organizations(name_ko, description, core_values, talent_profile)')
       .eq('id', sq.session_id)
       .single(),
     supabase.from('session_questions')
@@ -44,7 +45,7 @@ export async function getPeerTurns(sessionQuestionId: string): Promise<Required<
       .order('sequence'),
   ]);
   if (!session) return [];
-  const org = session.organizations as unknown as { name_ko: string; description: string | null };
+  const org = session.organizations as unknown as { name_ko: string; description: string | null; core_values: unknown; talent_profile: unknown };
   const setup = session.group_setup;
   const type = session.interview_type;
 
@@ -59,7 +60,7 @@ export async function getPeerTurns(sessionQuestionId: string): Promise<Required<
     guide: type === 'group' ? `${t.intent} — 이번에는 ${pick(LEVELS)}` : t.intent,
   }));
 
-  const prompt = `${org.name_ko} 신입 공채 ${INTERVIEW_TYPE_INFO[type].label}에 함께 참여한 가상 지원자들의 발언을 쓰세요.
+  const prompt = `${orgBrief(org)}\n\n위 기관 신입 공채 ${INTERVIEW_TYPE_INFO[type].label}에 함께 참여한 가상 지원자들의 발언을 쓰세요. 기관 정보를 아는 지원자답게 말하되, 지원자마다 이해 수준은 다르다.
 실제 사람이 말하듯 구어체 존댓말로, 한 발언은 ${type === 'group' ? '20초 안팎(100~170자)' : '15초 안팎(70~130자)'}이고 이 글자 수를 넘기지 않는다.
 누구도 이름을 말하지 않는다. 다른 사람은 ${type === 'debate' ? "'찬성 측 지원자님'처럼 편으로" : "'앞 지원자님'처럼"} 부르고, 평가받는 실제 지원자는 '지원자님'이라고 부른다.
 

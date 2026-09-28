@@ -10,6 +10,7 @@ import { INTERVIEWER_ROLES, type InterviewerRole } from '@/lib/constants/roles';
 import type { InterviewMode } from '@/lib/constants/modes';
 import { INTERVIEW_TYPES, INTERVIEW_TYPE_INFO, PT_TOPIC_PREFIX, TURN_TYPES, type InterviewType } from '@/lib/constants/interviewTypes';
 import type { PeerId, PeerTurn } from '@/lib/constants/peers';
+import { orgBrief } from '../logic/orgBrief';
 
 type Planned = { text: string; role: InterviewerRole; questionId: string | null; peers?: PeerTurn[] };
 
@@ -56,9 +57,9 @@ async function readCoverLetter(file: File, orgName: string, count: number) {
 }
 
 // PT면접 주제: 기관 업무와 연결된 실제형 과제
-async function makePtTopic(orgName: string, orgDesc: string | null): Promise<string> {
+async function makePtTopic(brief: string): Promise<string> {
   const res = await generateWithFallback(MODELS.evaluation, {
-    contents: `${orgName}${orgDesc ? `(${orgDesc})` : ''} 신입 공채 PT면접 주제를 하나 만드세요. 기관의 실제 사업·공공 이슈와 연결되고, 3분 발표로 해결 방안을 제시할 수 있는 과제여야 합니다.`,
+    contents: `${brief}\n\n위 기관 신입 공채 PT면접 주제를 하나 만드세요. 기관의 주요 사업·최근 현안과 연결되고, 3분 발표로 해결 방안을 제시할 수 있는 과제여야 합니다.`,
     config: {
       responseMimeType: 'application/json',
       responseJsonSchema: {
@@ -102,17 +103,17 @@ export default async function createSession(
 
   const { data: org, error: orgError } = await supabase
     .from('organizations')
-    .select('id, name_ko, description')
+    .select('id, name_ko, description, core_values, talent_profile')
     .eq('code', orgCode)
     .single();
   if (orgError || !org) throw new Error(`기관을 찾을 수 없습니다: ${orgCode}`);
 // 토론 논제 / 토의 과제: 기관 사업·공공 이슈와 연결
-async function makeGroupTopic(orgName: string, orgDesc: string | null, type: 'debate' | 'discussion'): Promise<string> {
+async function makeGroupTopic(brief: string, type: 'debate' | 'discussion'): Promise<string> {
   const ask = type === 'debate'
     ? '찬반이 분명히 갈리는 토론면접 논제를 하나 만드세요. "~해야 한다" 형태의 한 문장 논제와, 양측 입장을 이해할 배경 1~2문장.'
     : '지원자들이 함께 해결책을 합의해야 하는 토의면접 과제를 하나 만드세요. 구체적 상황과 합의해야 할 결과물(예: 우선 추진할 방안 한 가지)을 담은 과제 한 문장과 배경 1~2문장.';
   const res = await generateWithFallback(MODELS.evaluation, {
-    contents: `${orgName}${orgDesc ? `(${orgDesc})` : ''} 신입 공채 ${ask} 기관의 실제 사업과 공공 이슈에 연결하세요.`,
+    contents: `${brief}\n\n위 기관 신입 공채 ${ask} 기관의 주요 사업과 최근 현안에 연결하세요.`,
     config: {
       responseMimeType: 'application/json',
       responseJsonSchema: {
@@ -128,6 +129,36 @@ async function makeGroupTopic(orgName: string, orgDesc: string | null, type: 'de
   const t = JSON.parse(res.text ?? '{}') as { title?: string; background?: string };
   if (!t.title) throw new Error('주제를 만들지 못했습니다.');
   return `${t.title}\n배경: ${t.background ?? ''}`;
+}
+
+// 기관 전용 질문이 적은 기관: 기관 특징(인재상·사업·현안)으로 맞춤 질문을 만든다
+async function makeOrgQuestions(brief: string, count: number, focus: string): Promise<Planned[]> {
+  const res = await generateWithFallback(MODELS.evaluation, {
+    contents: `${brief}\n\n위 기관 신입 공채 면접관이 실제로 물을 법한 기관 맞춤 질문 ${count}개를 만드세요. 인재상·핵심가치·주요 사업·최근 현안 중 서로 다른 것을 하나씩 겨냥하고, 어느 기관에나 통하는 일반 질문은 피하세요. 면접 관점: ${focus} 구어체 한 문장(60자 이내).`,
+    config: {
+      responseMimeType: 'application/json',
+      responseJsonSchema: {
+        type: 'object',
+        properties: {
+          questions: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: { role: { type: 'string', enum: [...INTERVIEWER_ROLES] }, text: { type: 'string' } },
+              required: ['role', 'text'],
+            },
+          },
+        },
+        required: ['questions'],
+      },
+      httpOptions: { timeout: 12_000 },
+    },
+  });
+  const out = JSON.parse(res.text ?? '{}') as { questions?: { role: InterviewerRole; text: string }[] };
+  return (out.questions ?? [])
+    .filter((q) => q.text && INTERVIEWER_ROLES.includes(q.role))
+    .slice(0, count)
+    .map((q) => ({ text: q.text, role: q.role, questionId: null }));
 }
 
 const turn = (peer: PeerId, intent: string): PeerTurn => ({ peer, intent });
@@ -200,11 +231,11 @@ function discussionPlan(): Planned[] {
   if (type === 'pt') {
     // PT: 주제 발표 1개 + (발표에 대한 꼬리질문은 답변 평가 때 생성) + 마지막 한마디
     planned = [
-      { text: await makePtTopic(org.name_ko, org.description), role: 'exec', questionId: null },
+      { text: await makePtTopic(orgBrief(org)), role: 'exec', questionId: null },
       { text: CLOSING_QUESTION, role: 'exec', questionId: null },
     ];
   } else if (type === 'debate' || type === 'discussion') {
-    const topic = await makeGroupTopic(org.name_ko, org.description, type);
+    const topic = await makeGroupTopic(orgBrief(org), type);
     if (type === 'debate') {
       const userSide = Math.random() < 0.5 ? '찬성' : '반대';
       const peerSide = userSide === '찬성' ? '반대' : '찬성';
@@ -215,12 +246,18 @@ function discussionPlan(): Planned[] {
       planned = discussionPlan();
     }
   } else {
+    // 기관 전용 질문이 적으면 기관 특징으로 맞춤 질문 두 개를 만들어 섞는다 (실패해도 면접은 진행)
+    const orgQs = (linked?.length ?? 0) < 6 && mainCount >= 3
+      ? await makeOrgQuestions(orgBrief(org), 2, INTERVIEW_TYPE_INFO[type].focus).catch(() => [])
+      : [];
+    const main: Planned[] = sampleN([
+      ...sampleN(others, mainCount - orgQs.length).map((q) => ({ text: q.text, role: q.target_role, questionId: q.id })),
+      ...orgQs,
+    ], mainCount);
     planned = [
       { text: INTRO_QUESTION, role: 'hr', questionId: null, ...(withPeers ? { peers: both(0) } : {}) },
       ...clQuestions,
-      ...sampleN(others, mainCount).map((q, i) => ({
-        text: q.text, role: q.target_role, questionId: q.id, ...(withPeers ? { peers: both(i + 1) } : {}),
-      })),
+      ...main.map((q, i) => ({ ...q, ...(withPeers ? { peers: both(i + 1) } : {}) })),
       { text: CLOSING_QUESTION, role: 'exec', questionId: null },
     ];
   }
