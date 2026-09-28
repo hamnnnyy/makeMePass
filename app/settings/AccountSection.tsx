@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
+import Link from 'next/link';
 import { changePassword, deleteAccount, signOut, type ActionState } from '@/features/auth/server/account.server';
 
 const input = 'rounded-lg bg-neutral-800 border border-neutral-700 focus:border-orange-500 outline-none px-3 py-2 text-sm';
@@ -38,6 +39,8 @@ export function AccountSection({ email }: { email: string }) {
           </button>
         </div>
       </form>
+
+      <Link href="/privacy" className="text-xs text-neutral-500 hover:text-white transition-colors">개인정보처리방침</Link>
 
       <details className="group">
         <summary className="text-xs text-neutral-500 hover:text-red-400 cursor-pointer list-none">회원 탈퇴</summary>

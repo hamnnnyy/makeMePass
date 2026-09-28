@@ -96,6 +96,14 @@ export default function SignUpPage() {
             />
           </div>
 
+          <label className="flex items-start gap-2 text-xs text-neutral-400">
+            <input type="checkbox" required className="mt-0.5 accent-orange-500" />
+            <span>
+              <Link href="/privacy" target="_blank" className="text-orange-400 underline underline-offset-2">개인정보처리방침</Link>
+              에 동의합니다. 답변 음성·텍스트는 평가를 위해 Google Gemini로 전송됩니다.
+            </span>
+          </label>
+
           {error && <p className="text-xs text-red-400">{error}</p>}
 
           <button
