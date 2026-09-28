@@ -2,8 +2,7 @@ import Link from 'next/link';
 
 export const metadata = { title: '개인정보처리방침 | 합사카' };
 
-// TODO(운영자): 문의 이메일을 실제 연락처로 바꾸고 배포 전에 내용을 검토한다
-const CONTACT = '[문의 이메일]';
+const CONTACT = 'haminni.dev@gmail.com';
 const EFFECTIVE = '2026.09.28';
 
 const SECTIONS: { title: string; body: React.ReactNode }[] = [
