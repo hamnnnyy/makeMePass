@@ -9,7 +9,7 @@ import type { InterviewMode } from '@/lib/constants/modes';
 import { MODE_LABELS } from '@/lib/constants/modes';
 import { PageHeader } from '@/components/layout/PageHeader';
 import createSession from '@/features/interview/server/createSession.server';
-import { INTERVIEW_TYPES, INTERVIEW_TYPE_INFO, type InterviewType } from '@/lib/constants/interviewTypes';
+import { INTERVIEW_TYPES, INTERVIEW_TYPE_INFO, TURN_TYPES, type InterviewType } from '@/lib/constants/interviewTypes';
 
 // code 는 organizations.code 와 같아야 한다. 로고: public/orgs/{code}.png
 const ORG_GROUPS: { label: string; orgs: { code: string; name: string }[] }[] = [
@@ -169,7 +169,7 @@ export default function SetupPage() {
                   <span className="text-sm text-neutral-300">면접 유형</span>
                   <span className="text-xs text-neutral-500">{INTERVIEW_TYPE_INFO[interviewType].label}</span>
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   {INTERVIEW_TYPES.map((t) => (
                     <button
                       key={t}
@@ -186,8 +186,8 @@ export default function SetupPage() {
                 </div>
               </div>
 
-              {/* 질문 수 — PT는 발표 1개 + 꼬리질문으로 고정 */}
-              {interviewType !== 'pt' && <div>
+              {/* 질문 수 — PT·토론·토의는 정해진 차례로 진행 */}
+              {!TURN_TYPES.includes(interviewType) && <div>
                 <div className="flex justify-between items-center border-b border-neutral-700 pb-2 mb-6">
                   <span className="text-sm text-neutral-300">질문 수</span>
                   <span className="text-xs text-neutral-500">{questionCount}개</span>
@@ -213,8 +213,8 @@ export default function SetupPage() {
                 </div>
               </div>}
 
-              {/* 자기소개서 — PT는 주제 발표라 사용하지 않음 */}
-              {interviewType !== 'pt' && <div>
+              {/* 자기소개서 — PT·토론·토의는 주제 과제라 사용하지 않음 */}
+              {!TURN_TYPES.includes(interviewType) && <div>
                 <div className="flex justify-between items-center border-b border-neutral-700 pb-2 mb-6">
                   <span className="text-sm text-neutral-300">자기소개서 <span className="text-neutral-500">(선택 · PDF 5MB 이하 · 첨부 시 자소서 기반 질문 출제)</span></span>
                   {coverLetterFile && (
@@ -258,7 +258,7 @@ export default function SetupPage() {
             disabled={!canNext || starting}
             className="shrink-0 px-7 py-3 bg-pink-500 hover:bg-pink-400 disabled:bg-neutral-700 disabled:text-neutral-500 disabled:shadow-none text-white font-medium rounded-full transition-colors shadow-[0_8px_30px_-8px_#ff4f8b]"
           >
-            {step < 3 ? '다음' : starting ? (interviewType === 'pt' ? 'PT 주제 준비 중...' : coverLetterFile ? '자소서 분석 중...' : '준비 중...') : '면접 시작'}
+            {step < 3 ? '다음' : starting ? (TURN_TYPES.includes(interviewType) ? '주제 준비 중...' : coverLetterFile ? '자소서 분석 중...' : '준비 중...') : '면접 시작'}
           </button>
         </div>
       </div>

@@ -9,7 +9,8 @@ export const SEQUENCE_STEP = 10;
 export const FOLLOW_UP_OFFSET = 5;
 
 // 답변 제한 시간(초). 넘기면 녹음이 자동으로 끝난다.
-export const ANSWER_LIMIT_SEC = { intro: 90, main: 120, followUp: 60, closing: 60, pt: 180 } as const;
+// turn = 토론·토의 발언 차례
+export const ANSWER_LIMIT_SEC = { intro: 90, main: 120, followUp: 60, closing: 60, pt: 180, turn: 90 } as const;
 export type AnswerKind = keyof typeof ANSWER_LIMIT_SEC;
 
 // 면접관 반응·꼬리질문 말투 (Gemini 프롬프트용)

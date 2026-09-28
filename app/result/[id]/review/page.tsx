@@ -4,6 +4,7 @@ import { ROLE_LABELS, ROLE_COLORS, ROLE_ACCENT_HEX, INTERVIEWER_ROLES, type Inte
 import { getPersonaNames } from '@/features/interviewer/personaNames';
 import { Portrait, moodOf } from '@/features/interviewer/components/Portrait';
 import type { InterviewMode } from '@/lib/constants/modes';
+import { PEERS } from '@/lib/constants/peers';
 import { PageHeader } from '@/components/layout/PageHeader';
 
 type ScoreKey = 'score_content' | 'score_fluency' | 'score_eye_contact' | 'score_expression' | 'score_timing';
@@ -92,10 +93,10 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
   const supabase = await createClient();
 
   const [{ data: session }, { data: questions }] = await Promise.all([
-    supabase.from('interview_sessions').select('mode, organizations(pass_threshold)').eq('id', id).single(),
+    supabase.from('interview_sessions').select('mode, interview_type, group_setup, organizations(pass_threshold)').eq('id', id).single(),
     supabase
       .from('session_questions')
-      .select('id, sequence, question_text, asked_by_role, is_follow_up, transcript, filler_count, audio_url, score_content, score_fluency, score_eye_contact, score_expression, score_timing, hr_delta, tech_delta, exec_delta, hr_after, tech_after, exec_after, claude_feedback, answered_at')
+      .select('id, sequence, question_text, asked_by_role, is_follow_up, transcript, filler_count, audio_url, score_content, score_fluency, score_eye_contact, score_expression, score_timing, hr_delta, tech_delta, exec_delta, hr_after, tech_after, exec_after, claude_feedback, peer_turns, answered_at')
       .eq('session_id', id)
       .order('sequence'),
   ]);
@@ -148,6 +149,16 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
     <div className="min-h-screen bg-night text-white flex flex-col px-5 py-6 max-w-xl mx-auto w-full gap-6">
 
       {answered.length === 0 && <p className="text-sm text-neutral-500 text-center py-12">답변한 문항이 없습니다.</p>}
+
+      {session?.group_setup && (
+        <section className="rounded-2xl bg-neutral-900 border border-neutral-800 px-4 py-3 text-sm flex flex-col gap-1">
+          <p>
+            <span className="font-display text-base text-pink-400 mr-2">{session.interview_type === 'debate' ? '논제' : '과제'}</span>
+            {session.group_setup.topic.split('\n')[0]}
+          </p>
+          {session.group_setup.userSide && <p className="text-xs text-neutral-400">나: {session.group_setup.userSide} 측 · AI 지원자: {session.group_setup.peerSide} 측</p>}
+        </section>
+      )}
 
       {/* 호감도 요약: 시작 50 → 최종, 가장 크게 얻고 잃은 문항 */}
       {answered.length > 0 && (
@@ -265,6 +276,19 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
                   {done ? <DeltaBadge n={net(q)} className="ml-auto" /> : <span className="text-neutral-600 ml-auto">미답변</span>}
                 </header>
                 <p className="text-sm text-neutral-100 leading-relaxed">{q.question_text}</p>
+
+                {/* 나보다 먼저 말한 AI 지원자 */}
+                {(q.peer_turns ?? []).some((t) => t.text) && (
+                  <div className="flex flex-col gap-2 rounded-xl bg-neutral-950/60 p-3">
+                    <span className="text-[11px] text-neutral-500">먼저 말한 지원자</span>
+                    {(q.peer_turns ?? []).filter((t) => t.text).map((t, k) => (
+                      <div key={k} className="flex gap-2 text-xs leading-relaxed">
+                        <span className="shrink-0 font-display text-sm" style={{ color: PEERS[t.peer].color }}>{PEERS[t.peer].name}</span>
+                        <span className="text-neutral-400">{t.text}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 {done && (
                   <>

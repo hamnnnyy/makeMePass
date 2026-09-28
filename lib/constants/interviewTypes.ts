@@ -1,6 +1,6 @@
 import type { QuestionCategory } from '@/types/supabase';
 
-export const INTERVIEW_TYPES = ['general', 'personality', 'job', 'executive', 'pt'] as const;
+export const INTERVIEW_TYPES = ['general', 'personality', 'job', 'executive', 'pt', 'group', 'debate', 'discussion'] as const;
 export type InterviewType = (typeof INTERVIEW_TYPES)[number];
 
 export const INTERVIEW_TYPE_INFO: Record<InterviewType, {
@@ -39,7 +39,30 @@ export const INTERVIEW_TYPE_INFO: Record<InterviewType, {
     categories: null,
     focus: 'PT면접: 문제 정의, 논리 구조(서론-본론-결론), 근거와 실현 가능성, 시간 배분과 발표 전달력을 본다. 꼬리질문은 발표의 허점·근거·실행 방안을 파고든다.',
   },
+  group: {
+    label: '다대다',
+    desc: 'AI 지원자 2명과 같은 질문에 차례로 답변',
+    categories: null,
+    focus: '다대다 면접: 같은 질문에 답한 다른 지원자와 비교해 차별성, 구체성, 기관 이해도를 본다. 앞 지원자 답변을 되풀이하면 감점한다.',
+  },
+  debate: {
+    label: '토론면접',
+    desc: '찬반 주제로 AI 지원자와 입론·반론·최종 발언',
+    categories: null,
+    focus: '토론면접: 주장의 논리와 근거, 상대 주장을 정확히 짚은 반론, 감정적이지 않은 태도, 상대 발언 경청을 본다. 이기는 것보다 설득 과정과 태도가 중요하다.',
+  },
+  discussion: {
+    label: '토의면접',
+    desc: '과제를 두고 AI 지원자와 합의안 도출',
+    categories: null,
+    focus: '토의면접: 문제 정의, 실현 가능한 아이디어, 다른 의견 경청과 조율, 논의를 정리해 합의로 이끄는 역할을 본다. 자기 주장만 고집하면 감점한다.',
+  },
 };
+
+// AI 지원자가 함께하는 유형
+export const PEER_TYPES: readonly InterviewType[] = ['group', 'debate', 'discussion'];
+// 차례가 정해진 유형 (질문 수·자소서·꼬리질문 없음)
+export const TURN_TYPES: readonly InterviewType[] = ['debate', 'discussion', 'pt'];
 
 // PT면접 진행 시간과 꼬리질문 수
 export const PT_PREP_SEC = 120;

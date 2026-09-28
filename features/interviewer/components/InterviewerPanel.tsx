@@ -23,7 +23,7 @@ interface Props {
 }
 
 // 말하는 동안 음성 크기를 CSS 변수 --lv 로 흘려 캐릭터 흔들림·빛·음파 막대를 움직인다
-function useVoiceLevel(active: boolean, getLevel: (() => number) | undefined) {
+export function useVoiceLevel(active: boolean, getLevel: (() => number) | undefined) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const el = ref.current;
@@ -44,7 +44,7 @@ function useVoiceLevel(active: boolean, getLevel: (() => number) | undefined) {
   return ref;
 }
 
-const BARS = [0.5, 0.8, 1, 0.8, 0.5];
+export const BARS = [0.5, 0.8, 1, 0.8, 0.5];
 
 export function InterviewerPanel({ mode, role, mood, name, favor, passLine, delta, large, speaking, danger, dimmed, getLevel }: Props) {
   const levelRef = useVoiceLevel(!!speaking, getLevel);

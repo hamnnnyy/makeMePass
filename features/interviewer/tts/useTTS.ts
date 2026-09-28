@@ -2,17 +2,20 @@
 
 import { useState, useCallback, useRef } from 'react';
 import { getCachedAudio, setCachedAudio } from './audioCache';
-import type { InterviewerRole } from '@/lib/constants/roles';
+import type { Speaker } from '@/lib/constants/peers';
 
-const PITCH: Record<InterviewerRole, number> = { hr: 1.1, tech: 0.9, exec: 0.8 };
+// 브라우저 음성은 목소리가 하나라 높낮이·빠르기로 사람을 구분한다
+const PITCH: Record<Speaker, number> = { hr: 1.1, tech: 0.9, exec: 0.8, p1: 1.0, p2: 1.35 };
+const RATE: Partial<Record<Speaker, number>> = { p1: 1.15, p2: 1.05 };
 
 // 서버 TTS가 모두 실패하면 브라우저 내장 음성으로 읽는다
-function speakWithBrowser(text: string, role: InterviewerRole): Promise<void> {
+function speakWithBrowser(text: string, role: Speaker): Promise<void> {
   return new Promise((resolve) => {
     if (!('speechSynthesis' in window)) return resolve();
     const u = new SpeechSynthesisUtterance(text);
     u.lang = 'ko-KR';
     u.pitch = PITCH[role];
+    u.rate = RATE[role] ?? 1;
     u.onend = () => resolve();
     u.onerror = () => resolve();
     speechSynthesis.cancel();
@@ -62,7 +65,7 @@ export function useTTS() {
     setSpeaking(false);
   }, []);
 
-  const speak = useCallback(async (text: string, role: InterviewerRole) => {
+  const speak = useCallback(async (text: string, role: Speaker) => {
     stop();
     setSpeaking(true);
 
@@ -98,7 +101,7 @@ export function useTTS() {
   }, [stop, attachAnalyser]);
 
   // 답변하는 동안 다음 질문 음성을 미리 받아 둔다 (Gemini TTS 는 한 문장에 수 초 걸림)
-  const prefetch = useCallback(async (text: string, role: InterviewerRole) => {
+  const prefetch = useCallback(async (text: string, role: Speaker) => {
     const cacheKey = `${role}:${text}`;
     if (getCachedAudio(cacheKey)) return;
     const { ttsSpeak } = await import('./ttsSpeak.server');

@@ -21,16 +21,20 @@ import { SelfCam } from '@/features/interview/components/SelfCam';
 import { endSession } from '@/features/interview/server/endSession.server';
 import { evaluateAnswer } from '@/features/interview/server/evaluateAnswer.server';
 import type { FavorState } from '@/features/interview/server/evaluateAnswer.server';
-import { PT_INTRO_LINE, PT_PREP_SEC, PT_TOPIC_PREFIX } from '@/lib/constants/interviewTypes';
+import { PEER_TYPES, PT_INTRO_LINE, PT_PREP_SEC, PT_TOPIC_PREFIX } from '@/lib/constants/interviewTypes';
+import { PEERS, isPeer, type PeerId, type Speaker } from '@/lib/constants/peers';
+import { getPeerTurns } from '@/features/interview/server/peerTurns.server';
+import { PeerSeat } from '@/features/interview/components/PeerSeat';
 import type { Database } from '@/types/supabase';
 
 type Session = Database['public']['Tables']['interview_sessions']['Row'];
 type SessionQuestion = Database['public']['Tables']['session_questions']['Row'];
-type Phase = 'lobby' | 'speaking' | 'preparing' | 'answering' | 'evaluating' | 'error' | 'ending';
+type Phase = 'lobby' | 'speaking' | 'peers' | 'preparing' | 'answering' | 'evaluating' | 'error' | 'ending';
 
 const PHASE_LABEL: Record<Phase, string> = {
   lobby: '입장 대기',
   speaking: '면접관 질문 중',
+  peers: '다른 지원자 발언 중',
   preparing: 'PT 준비 중',
   answering: '답변 중',
   evaluating: '면접관이 메모하는 중...',
@@ -38,7 +42,8 @@ const PHASE_LABEL: Record<Phase, string> = {
   ending: '면접 종료',
 };
 
-function answerKind(q: SessionQuestion): AnswerKind {
+function answerKind(q: SessionQuestion, type: Session['interview_type']): AnswerKind {
+  if (type === 'debate' || type === 'discussion') return 'turn';
   if (q.question_text === CLOSING_QUESTION) return 'closing';
   if (q.question_text.startsWith(PT_TOPIC_PREFIX)) return 'pt';
   if (q.is_follow_up) return 'followUp';
@@ -90,14 +95,17 @@ export function SessionView({
   const { videoRef, error: camError } = useMediaStream();
   const recorder = useRecorder();
   const { speak, prefetch, getLevel } = useTTS();
-  const [speaker, setSpeaker] = useState<InterviewerRole | null>(null);
+  const [speaker, setSpeaker] = useState<Speaker | null>(null);
+  const [peerLine, setPeerLine] = useState<{ peer: PeerId; text: string } | null>(null);  // AI 지원자 자막
+  const hasPeers = PEER_TYPES.includes(session.interview_type);
+  const setup = session.group_setup;
   const { ready: faceReady, resultRef } = useFaceLandmarker(videoRef);
   const metrics = useExpressionMetrics(resultRef, phase !== 'lobby');
 
   const currentQuestion = questions[idx] ?? null;
 
   // 말하는 면접관 카드에 테두리를 켠다
-  async function say(text: string, role: InterviewerRole) {
+  async function say(text: string, role: Speaker) {
     setSpeaker(role);
     await speak(text, role);
     setSpeaker(null);
@@ -117,13 +125,23 @@ export function SessionView({
     setAnswerText('');
     setPhase('speaking');
     // PT 주제는 길어서 읽지 않고 화면에 띄운 뒤 준비 시간을 준다
-    if (answerKind(q) === 'pt') {
+    if (answerKind(q, session.interview_type) === 'pt') {
       await say(PT_INTRO_LINE, q.asked_by_role as InterviewerRole);
       setRemaining(PT_PREP_SEC);
       setPhase('preparing');
       return;
     }
     await say(q.question_text, q.asked_by_role as InterviewerRole);
+    // 다대다·토론·토의: 사용자 차례 전에 AI 지원자가 먼저 말한다 (실패하면 건너뛴다)
+    if (q.peer_turns?.length) {
+      setPhase('peers');
+      const turns = await getPeerTurns(q.id).catch(() => []);
+      for (const t of turns) {
+        setPeerLine({ peer: t.peer, text: t.text });
+        await say(t.text, t.peer);
+      }
+      setPeerLine(null);
+    }
     await beginAnswer(i);
   }
 
@@ -142,7 +160,7 @@ export function SessionView({
     }
     // 질문이 끝나자마자 녹음 시작. 말을 시작하기까지 걸린 시간도 평가에 들어간다.
     trackerRef.current = createTracker();
-    setRemaining(ANSWER_LIMIT_SEC[answerKind(q)]);
+    setRemaining(ANSWER_LIMIT_SEC[answerKind(q, session.interview_type)]);
     setPhase('answering');
     beginningRef.current = false;
     const next = questionsRef.current[i + 1];
@@ -153,6 +171,10 @@ export function SessionView({
     if (startIdx === 0) {
       setPhase('speaking');
       await say(greetingLine(orgName), 'exec');
+      if (setup && (session.interview_type === 'debate' || session.interview_type === 'discussion')) {
+        const kind = session.interview_type === 'debate' ? '논제' : '과제';
+        await say(`오늘의 ${kind}는 ${setup.topic.split('\n')[0]} 입니다.${setup.userSide ? ` 지원자님은 ${setup.userSide} 측입니다.` : ''}`, 'exec');
+      }
     }
     await ask(startIdx);
   }
@@ -268,18 +290,38 @@ export function SessionView({
         ))}
       </div>
 
-      {/* 비주얼노벨 대사창: 질문한(말하는) 면접관 이름표 + 대사 */}
-      {(() => {
-        const who = currentQuestion && phase !== 'lobby' && phase !== 'error' ? (speaker ?? currentQuestion.asked_by_role) : null;
+      {/* 토론 논제·토의 과제 */}
+      {setup && (
+        <div className="rounded-xl bg-neutral-900 border border-neutral-800 px-5 py-3 text-sm flex flex-col gap-1">
+          <p>
+            <span className="font-display text-base text-pink-400 mr-2">{session.interview_type === 'debate' ? '논제' : '과제'}</span>
+            {setup.topic.split('\n')[0]}
+            {setup.userSide && <span className="ml-2 text-xs rounded-full bg-pink-500/15 text-pink-300 px-2 py-0.5">나: {setup.userSide} 측</span>}
+          </p>
+          {setup.topic.split('\n')[1] && <p className="text-xs text-neutral-400">{setup.topic.split('\n')[1]}</p>}
+        </div>
+      )}
+
+      {/* 비주얼노벨 대사창: 말하는 사람 이름표 + 대사. AI 지원자가 말하는 동안은 그 발언, 내 차례엔 질문 */}
+      {peerLine ? (
+        <DialogueBox color={PEERS[peerLine.peer].color} name={PEERS[peerLine.peer].name} tag="AI 지원자">{peerLine.text}</DialogueBox>
+      ) : (() => {
+        const who = currentQuestion && phase !== 'lobby' && phase !== 'error' && (!speaker || !isPeer(speaker))
+          ? ((speaker as InterviewerRole | null) ?? currentQuestion.asked_by_role) : null;
         return (
-          <DialogueBox role={who} name={who ? names[who] : undefined} tag={currentQuestion?.is_follow_up ? '꼬리질문' : undefined}>
+          <DialogueBox
+            role={who}
+            name={who ? names[who] : undefined}
+            tag={phase === 'answering' && hasPeers ? '내 차례' : currentQuestion?.is_follow_up ? '꼬리질문' : undefined}
+          >
             {phase === 'error' ? (
               <span className="text-red-400">{error}</span>
             ) : phase === 'lobby' ? (
               <span className="text-neutral-400 text-sm">
                 카메라를 정면에 두고, 면접관(화면)을 바라보며 답변하세요. 질문이 끝나면 바로 녹음이 시작됩니다.
+                {hasPeers && ' AI 지원자가 먼저 발언하면 이어서 내 차례가 옵니다.'}
               </span>
-            ) : currentQuestion && answerKind(currentQuestion) === 'pt' ? (
+            ) : currentQuestion && answerKind(currentQuestion, session.interview_type) === 'pt' ? (
               <div className="whitespace-pre-line">
                 <p className="text-xs text-pink-400 mb-1">PT 주제 · 준비 {PT_PREP_SEC / 60}분 · 발표 최대 3분</p>
                 {currentQuestion.question_text.slice(PT_TOPIC_PREFIX.length)}
@@ -291,7 +333,11 @@ export function SessionView({
 
       {/* Self-cam */}
       <div className="flex-1 flex flex-col items-center gap-4">
-        <div className="rounded-2xl overflow-hidden bg-neutral-900 w-full max-w-xl aspect-video relative">
+        <div className={hasPeers ? 'w-full grid grid-cols-2 md:grid-cols-[1fr_minmax(0,36rem)_1fr] gap-4 items-center' : 'contents'}>
+        {hasPeers && (
+          <PeerSeat peer="p1" side={setup?.peerSide} speaking={speaker === 'p1'} getLevel={getLevel} />
+        )}
+        <div className={`rounded-2xl overflow-hidden bg-neutral-900 w-full max-w-xl aspect-video relative ${hasPeers ? 'col-span-2 md:col-span-1 order-first md:order-none' : ''}`}>
           <SelfCam videoRef={videoRef} resultRef={resultRef} metrics={metrics} />
           {phase === 'answering' && !metrics.detected && (
             <div className="absolute inset-x-0 top-0 bg-red-600/80 text-xs text-center py-1.5">
@@ -304,9 +350,13 @@ export function SessionView({
             </span>
           )}
         </div>
+        {hasPeers && (
+          <PeerSeat peer="p2" side={setup?.peerSide} speaking={speaker === 'p2'} getLevel={getLevel} />
+        )}
+        </div>
         {camError && <p className="text-xs text-red-400">{camError}</p>}
 
-        {currentQuestion && answerKind(currentQuestion) === 'pt' && (phase === 'preparing' || phase === 'answering') && (
+        {currentQuestion && answerKind(currentQuestion, session.interview_type) === 'pt' && (phase === 'preparing' || phase === 'answering') && (
           <textarea
             value={ptMemo}
             onChange={(e) => setPtMemo(e.target.value)}

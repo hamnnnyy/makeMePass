@@ -7,6 +7,7 @@ import { uploadSessionAudio } from '@/lib/storage/uploadBlob';
 import { CLOSING_QUESTION, FOLLOW_UP_OFFSET, INTRO_QUESTION, MODE_TONE, type AnswerKind } from '@/lib/constants/interview';
 import { INTERVIEW_TYPE_INFO, PT_FOLLOW_UPS, PT_TOPIC_PREFIX } from '@/lib/constants/interviewTypes';
 import { INTERVIEWER_ROLES, type InterviewerRole } from '@/lib/constants/roles';
+import { PEERS } from '@/lib/constants/peers';
 import type { InterviewMode } from '@/lib/constants/modes';
 import type { NonVerbalSummary } from '@/features/mediapipe/logic/nonVerbal';
 import type { AudioStats } from '../logic/audio';
@@ -111,7 +112,7 @@ export async function evaluateAnswer(sessionQuestionId: string, formData: FormDa
   // RLS가 본인 세션의 질문만 돌려준다
   const { data: sq } = await supabase
     .from('session_questions')
-    .select('question_text, asked_by_role, session_id, sequence, is_follow_up, question_id')
+    .select('question_text, asked_by_role, session_id, sequence, is_follow_up, question_id, peer_turns')
     .eq('id', sessionQuestionId)
     .single();
   if (!sq) throw new Error('질문을 찾을 수 없습니다.');
@@ -124,7 +125,7 @@ export async function evaluateAnswer(sessionQuestionId: string, formData: FormDa
       .single(),
     supabase
       .from('session_questions')
-      .select('question_text, transcript, is_follow_up, hr_after, tech_after, exec_after')
+      .select('question_text, transcript, is_follow_up, hr_after, tech_after, exec_after, peer_turns')
       .eq('session_id', sq.session_id)
       .not('answered_at', 'is', null)
       .order('answered_at'),
@@ -159,17 +160,22 @@ export async function evaluateAnswer(sessionQuestionId: string, formData: FormDa
   const role = sq.asked_by_role as InterviewerRole;
   const isClosing = sq.question_text === CLOSING_QUESTION;
   const isPt = session.interview_type === 'pt';
+  // 토론·토의: 정해진 차례대로 진행하고 꼬리질문이 없다
+  const isTurn = session.interview_type === 'debate' || session.interview_type === 'discussion';
+  const peerLine = (turns: typeof sq.peer_turns) =>
+    (turns ?? []).filter((t) => t.text).map((t) => `  - 지원자 ${PEERS[t.peer].name}: ${t.text}`).join('\n');
   // PT: 발표 뒤 꼬리질문을 최대 PT_FOLLOW_UPS 개까지 이어서 한다 (지금 답한 문항 포함해 센다)
   const followUpsSoFar = (history ?? []).filter((h) => h.is_follow_up).length + (sq.is_follow_up ? 1 : 0);
-  const allowFollowUp = !isClosing && (isPt ? followUpsSoFar < PT_FOLLOW_UPS : !sq.is_follow_up);
-  const kind: AnswerKind = isClosing ? 'closing'
+  const allowFollowUp = !isClosing && !isTurn && (isPt ? followUpsSoFar < PT_FOLLOW_UPS : !sq.is_follow_up);
+  const kind: AnswerKind = isTurn ? 'turn'
+    : isClosing ? 'closing'
     : sq.question_text.startsWith(PT_TOPIC_PREFIX) ? 'pt'
     : sq.is_follow_up ? 'followUp'
     : sq.question_text === INTRO_QUESTION ? 'intro'
     : 'main';
 
   const prevQA = (history ?? [])
-    .map((h, i) => `Q${i + 1}. ${h.question_text}\nA${i + 1}. ${h.transcript || '(무응답)'}`)
+    .map((h, i) => `Q${i + 1}. ${h.question_text}\n${h.peer_turns?.length ? `${peerLine(h.peer_turns)}\n` : ''}A${i + 1}. ${h.transcript || '(무응답)'}`)
     .join('\n');
 
   const prompt = `당신은 ${org.name_ko} 신입 채용 면접의 평가위원 3명(hr, tech, exec)입니다.
@@ -181,6 +187,7 @@ ${isText
 ${org.core_values ? `[핵심가치/인재상] ${JSON.stringify(org.core_values)} ${JSON.stringify(org.talent_profile ?? '')}` : ''}
 ${coverLetter ? `[지원자 자기소개서 요약] ${JSON.stringify(coverLetter)}` : ''}
 [면접 유형] ${INTERVIEW_TYPE_INFO[session.interview_type ?? 'general'].focus}
+${session.group_setup ? `[${session.interview_type === 'debate' ? '논제' : '과제'}] ${session.group_setup.topic}${session.group_setup.userSide ? `\n지원자(평가 대상)는 ${session.group_setup.userSide} 측, 다른 지원자들은 ${session.group_setup.peerSide} 측` : ''}` : ''}
 [면접관 말투] ${MODE_TONE[session.mode as InterviewMode]}
 ${(personas ?? []).filter((p) => p.mode === session.mode)
   .map((p) => `- ${p.role}: ${p.label_ko}${p.position_ko ? `(${p.position_ko})` : ''}. ${p.tone_description ?? ''}`).join('\n')}
@@ -188,8 +195,9 @@ ${(personas ?? []).filter((p) => p.mode === session.mode)
 [이전 문답]
 ${prevQA || '(없음)'}
 
-[현재 질문] (${role} 면접관, ${kind === 'intro' ? '1분 자기소개' : kind === 'pt' ? 'PT 발표 (준비 2분, 발표 3분)' : kind === 'followUp' ? '꼬리질문' : kind === 'closing' ? '마지막 한마디' : '본 질문'})
+[현재 질문] (${role} 면접관, ${kind === 'intro' ? '1분 자기소개' : kind === 'pt' ? 'PT 발표 (준비 2분, 발표 3분)' : kind === 'followUp' ? '꼬리질문' : kind === 'closing' ? '마지막 한마디' : kind === 'turn' ? '진행자 안내에 따른 발언 차례' : '본 질문'})
 ${sq.question_text}
+${sq.peer_turns?.length ? `[이번 차례에 평가 대상보다 먼저 말한 다른 지원자]\n${peerLine(sq.peer_turns)}\n(다른 지원자는 평가 대상이 아니다. 평가 대상의 답변만 평가하되, 비교해서 차별성과 반응의 적절성을 본다.)` : ''}
 
 ${isText ? `${nvLine}\n[지원자 답변(텍스트 입력)]\n${answerText}` : `${nvLine}
 [측정된 전달 지표]

@@ -8,9 +8,10 @@ import { sampleN } from '@/lib/utils/sample';
 import { CLOSING_QUESTION, INTRO_QUESTION, SEQUENCE_STEP } from '@/lib/constants/interview';
 import { INTERVIEWER_ROLES, type InterviewerRole } from '@/lib/constants/roles';
 import type { InterviewMode } from '@/lib/constants/modes';
-import { INTERVIEW_TYPES, INTERVIEW_TYPE_INFO, PT_TOPIC_PREFIX, type InterviewType } from '@/lib/constants/interviewTypes';
+import { INTERVIEW_TYPES, INTERVIEW_TYPE_INFO, PT_TOPIC_PREFIX, TURN_TYPES, type InterviewType } from '@/lib/constants/interviewTypes';
+import type { PeerId, PeerTurn } from '@/lib/constants/peers';
 
-type Planned = { text: string; role: InterviewerRole; questionId: string | null };
+type Planned = { text: string; role: InterviewerRole; questionId: string | null; peers?: PeerTurn[] };
 
 const MAX_PDF_BYTES = 5 * 1024 * 1024;
 // 하루 면접 시작 횟수 (Gemini 비용·남용 방지). KST 자정 기준.
@@ -105,6 +106,59 @@ export default async function createSession(
     .eq('code', orgCode)
     .single();
   if (orgError || !org) throw new Error(`기관을 찾을 수 없습니다: ${orgCode}`);
+// 토론 논제 / 토의 과제: 기관 사업·공공 이슈와 연결
+async function makeGroupTopic(orgName: string, orgDesc: string | null, type: 'debate' | 'discussion'): Promise<string> {
+  const ask = type === 'debate'
+    ? '찬반이 분명히 갈리는 토론면접 논제를 하나 만드세요. "~해야 한다" 형태의 한 문장 논제와, 양측 입장을 이해할 배경 1~2문장.'
+    : '지원자들이 함께 해결책을 합의해야 하는 토의면접 과제를 하나 만드세요. 구체적 상황과 합의해야 할 결과물(예: 우선 추진할 방안 한 가지)을 담은 과제 한 문장과 배경 1~2문장.';
+  const res = await generateWithFallback(MODELS.evaluation, {
+    contents: `${orgName}${orgDesc ? `(${orgDesc})` : ''} 신입 공채 ${ask} 기관의 실제 사업과 공공 이슈에 연결하세요.`,
+    config: {
+      responseMimeType: 'application/json',
+      responseJsonSchema: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', description: type === 'debate' ? '논제 한 문장 (40자 이내)' : '과제 한 문장 (60자 이내)' },
+          background: { type: 'string', description: '배경 1~2문장' },
+        },
+        required: ['title', 'background'],
+      },
+    },
+  });
+  const t = JSON.parse(res.text ?? '{}') as { title?: string; background?: string };
+  if (!t.title) throw new Error('주제를 만들지 못했습니다.');
+  return `${t.title}\n배경: ${t.background ?? ''}`;
+}
+
+const turn = (peer: PeerId, intent: string): PeerTurn => ({ peer, intent });
+
+// 토론: 사용자 한 편, AI 지원자 둘은 반대편. 입론 → 반론 → 재반론 → 최종 발언
+function debatePlan(peerSide: string): Planned[] {
+  return [
+    { text: '입론 시간입니다. 논제에 대한 입장과 근거를 말씀해 주세요.', role: 'exec', questionId: null,
+      peers: [turn('p1', `입론. ${peerSide} 측 입장과 핵심 근거 두 가지`)] },
+    { text: '상대 측 입론에 대해 반론해 주세요.', role: 'tech', questionId: null,
+      peers: [turn('p2', `입론. ${peerSide} 측 입장을 보강하고 사용자 입론의 약점 하나를 짚는다`)] },
+    { text: '방금 반론에 대한 재반론과 보완 근거를 말씀해 주세요.', role: 'hr', questionId: null,
+      peers: [turn('p1', '반론. 사용자의 직전 발언을 구체적으로 인용해 반박한다')] },
+    { text: '최종 발언을 해 주세요.', role: 'exec', questionId: null,
+      peers: [turn('p2', `최종 발언. ${peerSide} 측 입장을 정리한다`)] },
+  ];
+}
+
+// 토의: 문제 정의 → 방안 제시 → 의견 조율 → 합의안 정리
+function discussionPlan(): Planned[] {
+  return [
+    { text: '과제를 확인하셨죠. 이 문제를 어떻게 정의하면 좋을지 의견을 나눠 주세요.', role: 'exec', questionId: null,
+      peers: [turn('p1', '문제 정의. 원인을 한 가지로 단정하는 경향이 있다')] },
+    { text: '해결 방안을 제시해 주세요.', role: 'tech', questionId: null,
+      peers: [turn('p1', '방안 제시. 예산이 많이 드는 대규모 사업'), turn('p2', '방안 제시. 작은 시범 사업부터 하자며 p1 과 부딪힌다')] },
+    { text: '의견이 갈리고 있습니다. 어떻게 조율하면 좋을까요?', role: 'hr', questionId: null,
+      peers: [turn('p1', '자기 방안을 고집하며 사용자 의견의 약점을 지적한다'), turn('p2', '과제와 조금 벗어난 이야기로 흐름을 흐린다')] },
+    { text: '시간이 얼마 남지 않았습니다. 지금까지 논의를 정리해 합의안을 발표해 주세요.', role: 'exec', questionId: null,
+      peers: [turn('p2', '누군가 정리해 주면 좋겠다며 사용자에게 정리를 넘긴다')] },
+  ];
+}
 
   const count = Math.max(3, Math.min(10, Math.floor(questionCount)));
   const type: InterviewType = INTERVIEW_TYPES.includes(interviewType) ? interviewType : 'general';
@@ -123,7 +177,7 @@ export default async function createSession(
   // 실제 면접 순서: 1분 자기소개 → (자소서 질문) → 본 질문 → 마지막 한마디
   let coverLetterId: string | null = null;
   let clQuestions: Planned[] = [];
-  if (type !== 'pt' && coverLetterFile && coverLetterFile.size > 0) {
+  if (!TURN_TYPES.includes(type) && coverLetterFile && coverLetterFile.size > 0) {
     if (coverLetterFile.type !== 'application/pdf') throw new Error('자기소개서는 PDF만 지원합니다.');
     if (coverLetterFile.size > MAX_PDF_BYTES) throw new Error('자기소개서는 5MB 이하만 가능합니다.');
     const cl = await readCoverLetter(coverLetterFile, org.name_ko, Math.min(3, Math.floor((count - 1) / 2)));
@@ -137,16 +191,39 @@ export default async function createSession(
   }
 
   const mainCount = count - 1 - clQuestions.length;
-  // PT: 주제 발표 1개 + (발표에 대한 꼬리질문은 답변 평가 때 생성) + 마지막 한마디
-  const planned: Planned[] = type === 'pt' ? [
-    { text: await makePtTopic(org.name_ko, org.description), role: 'exec', questionId: null },
-    { text: CLOSING_QUESTION, role: 'exec', questionId: null },
-  ] : [
-    { text: INTRO_QUESTION, role: 'hr', questionId: null },
-    ...clQuestions,
-    ...sampleN(others, mainCount).map((q) => ({ text: q.text, role: q.target_role, questionId: q.id })),
-    { text: CLOSING_QUESTION, role: 'exec', questionId: null },
-  ];
+  // 다대다: 자기소개·본 질문에 AI 지원자 둘이 먼저 답한다 (순서는 번갈아). 자소서 질문·마지막 한마디는 사용자만.
+  const both = (i: number): PeerTurn[] => (i % 2 ? [turn('p2', '답변'), turn('p1', '답변')] : [turn('p1', '답변'), turn('p2', '답변')]);
+  const withPeers = type === 'group';
+
+  let groupSetup: { topic: string; userSide?: string; peerSide?: string } | null = null;
+  let planned: Planned[];
+  if (type === 'pt') {
+    // PT: 주제 발표 1개 + (발표에 대한 꼬리질문은 답변 평가 때 생성) + 마지막 한마디
+    planned = [
+      { text: await makePtTopic(org.name_ko, org.description), role: 'exec', questionId: null },
+      { text: CLOSING_QUESTION, role: 'exec', questionId: null },
+    ];
+  } else if (type === 'debate' || type === 'discussion') {
+    const topic = await makeGroupTopic(org.name_ko, org.description, type);
+    if (type === 'debate') {
+      const userSide = Math.random() < 0.5 ? '찬성' : '반대';
+      const peerSide = userSide === '찬성' ? '반대' : '찬성';
+      groupSetup = { topic, userSide, peerSide };
+      planned = debatePlan(peerSide);
+    } else {
+      groupSetup = { topic };
+      planned = discussionPlan();
+    }
+  } else {
+    planned = [
+      { text: INTRO_QUESTION, role: 'hr', questionId: null, ...(withPeers ? { peers: both(0) } : {}) },
+      ...clQuestions,
+      ...sampleN(others, mainCount).map((q, i) => ({
+        text: q.text, role: q.target_role, questionId: q.id, ...(withPeers ? { peers: both(i + 1) } : {}),
+      })),
+      { text: CLOSING_QUESTION, role: 'exec', questionId: null },
+    ];
+  }
 
   const { data: session, error } = await supabase
     .from('interview_sessions')
@@ -156,6 +233,7 @@ export default async function createSession(
       mode,
       // 종합은 컬럼 기본값 사용 (interview_type 마이그레이션 전에도 동작)
       ...(type !== 'general' ? { interview_type: type } : {}),
+      ...(groupSetup ? { group_setup: groupSetup } : {}),
       status: 'in_progress' as const,
       result: 'pending' as const,
       total_questions: planned.length,
@@ -198,6 +276,7 @@ export default async function createSession(
       tech_after: null,
       exec_after: null,
       claude_feedback: null,
+      ...(q.peers ? { peer_turns: q.peers } : {}),
       answered_at: null,
     }))
   );
