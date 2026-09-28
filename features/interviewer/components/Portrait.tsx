@@ -8,24 +8,29 @@ export type Mood = 'neutral' | 'happy' | 'upset';
 export const moodOf = (delta: number | undefined): Mood =>
   !delta ? 'neutral' : delta > 0 ? 'happy' : 'upset';
 
-// public/personas/ 에 있는 일러스트 (1024x1536, 확장자 .png 제외). 그림을 추가하면 여기에도 적는다.
+// public/personas/ 에 있는 일러스트 (2:3 세로, 확장자 .png 제외). 그림을 추가하면 여기에도 적는다.
 // 규칙: {mode}-{role} 기본, {mode}-{role}-happy / -upset 표정 (표정 그림은 기본 그림의 얼굴 위치를 따른다)
 // 값 = 얼굴 중심 [x%, y%]. 말풍선 아바타에서 얼굴을 확대할 때 쓴다.
 const FACES: Record<string, [number, number]> = {
-  'cute-hr': [56, 25],
-  'cute-tech': [50, 24],
-  'cute-exec': [45, 25],
+  'cute-hr': [46, 29],
+  'cute-tech': [50, 29],
+  'cute-exec': [50, 26],
 };
 // 표정 그림 파일 이름 (예: 'cute-hr-happy', 'cute-hr-upset')
-const MOOD_PORTRAITS = new Set<string>([]);
+const MOOD_PORTRAITS = new Set<string>([
+  'cute-hr-happy', 'cute-hr-upset', 'cute-tech-happy', 'cute-tech-upset', 'cute-exec-happy', 'cute-exec-upset',
+]);
+
+// 같은 이름으로 그림을 바꾸면 이미지 최적화·CDN 캐시가 예전 그림을 준다. 그림을 교체할 때 올린다.
+const VERSION = 2;
 
 export function portraitSrc(mode: InterviewMode, role: InterviewerRole, mood: Mood = 'neutral') {
   const base = `${mode}-${role}`;
   if (!FACES[base]) return null;
-  return `/personas/${mood !== 'neutral' && MOOD_PORTRAITS.has(`${base}-${mood}`) ? `${base}-${mood}` : base}.png`;
+  return `/personas/${mood !== 'neutral' && MOOD_PORTRAITS.has(`${base}-${mood}`) ? `${base}-${mood}` : base}.png?v=${VERSION}`;
 }
 
-const ZOOM = 2.8;
+const ZOOM = 2.0;
 
 interface Props {
   mode: InterviewMode;
