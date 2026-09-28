@@ -26,7 +26,8 @@ export async function getPlayerStats(supabase: SupabaseClient<Database>, userId:
   ]);
 
   const rows = sessions.data ?? [];
-  const finished = rows.filter((s) => s.status === 'completed' || s.status === 'eliminated').length;
+  // 실격은 완주로 치지 않는다 (완주 보너스 XP 없음)
+  const finished = rows.filter((s) => (s.status === 'completed' || s.status === 'eliminated') && s.result !== 'fail_disqualified').length;
   const passes = rows.filter((s) => s.result === 'pass').length;
   const xp = (answered.count ?? 0) * XP.answer + finished * XP.finish + passes * XP.pass;
 

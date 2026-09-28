@@ -88,7 +88,7 @@ export default async function ResultPage({ params }: { params: Promise<{ id: str
   ].filter(Boolean).join(' · ');
 
   // 이번 면접으로 얻은 경험치와 레벨업
-  const gained = sessionXp(answered.length, !abandoned, result === 'pass');
+  const gained = sessionXp(answered.length, !abandoned && result !== 'fail_disqualified', result === 'pass');
   const before = levelInfo(Math.max(0, player.xp - gained));
   const leveledUp = player.level > before.level;
   const newColors = ORB_COLORS.filter((c) => c.level > before.level && c.level <= player.level);

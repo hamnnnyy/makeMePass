@@ -1,4 +1,4 @@
-// 경험치: 답변 1개 10, 면접 완주(탈락 포함) 30, 합격 100. DB 에 따로 저장하지 않고 기록에서 계산한다.
+// 경험치: 답변 1개 10, 면접 완주(탈락 포함, 실격 제외) 30, 합격 100. DB 에 따로 저장하지 않고 기록에서 계산한다.
 export const XP = { answer: 10, finish: 30, pass: 100 } as const;
 
 export function sessionXp(answered: number, finished: boolean, passed: boolean): number {
