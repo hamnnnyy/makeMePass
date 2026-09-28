@@ -8,6 +8,7 @@ import { Paperclip } from 'lucide-react';
 import type { InterviewMode } from '@/lib/constants/modes';
 import { MODE_LABELS } from '@/lib/constants/modes';
 import createSession from '@/features/interview/server/createSession.server';
+import { INTERVIEW_TYPES, INTERVIEW_TYPE_INFO, type InterviewType } from '@/lib/constants/interviewTypes';
 
 // code 는 organizations.code 와 같아야 한다. 로고: public/orgs/{code}.png
 const ORG_GROUPS: { label: string; orgs: { code: string; name: string }[] }[] = [
@@ -56,6 +57,7 @@ export default function SetupPage() {
   const [step, setStep] = useState(1);
   const [orgId, setOrgId] = useState<string | null>(null);
   const [mode, setMode] = useState<InterviewMode | null>(null);
+  const [interviewType, setInterviewType] = useState<InterviewType>('general');
   const [questionCount, setQuestionCount] = useState(5);
   const [coverLetterFile, setCoverLetterFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -83,7 +85,7 @@ export default function SetupPage() {
     setStarting(true);
     setError(null);
     try {
-      await createSession(orgId!, mode!, questionCount, coverLetterFile);
+      await createSession(orgId!, mode!, interviewType, questionCount, coverLetterFile);
     } catch {
       setError('면접을 준비하지 못했습니다. 잠시 후 다시 시도해 주세요.');
       setStarting(false);
@@ -166,10 +168,33 @@ export default function SetupPage() {
           <div>
             <h1 className="text-2xl font-bold mb-8">03. 옵션 선택</h1>
             <div className="space-y-8">
-              {/* 질문 수 */}
+              {/* 면접 유형 */}
               <div>
                 <div className="flex justify-between items-center border-b border-neutral-700 pb-2 mb-6">
-                  <span className="text-sm text-neutral-300">A. 질문 수</span>
+                  <span className="text-sm text-neutral-300">A. 면접 유형</span>
+                  <span className="text-xs text-neutral-500">{INTERVIEW_TYPE_INFO[interviewType].label}</span>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                  {INTERVIEW_TYPES.map((t) => (
+                    <button
+                      key={t}
+                      onClick={() => setInterviewType(t)}
+                      aria-pressed={interviewType === t}
+                      className={`rounded-2xl bg-neutral-800/80 px-4 py-3 text-left transition-all ${
+                        interviewType === t ? 'ring-2 ring-orange-500' : 'hover:bg-neutral-700/80'
+                      }`}
+                    >
+                      <p className="text-sm font-semibold">{INTERVIEW_TYPE_INFO[t].label}</p>
+                      <p className="text-[11px] text-neutral-400 mt-1 leading-snug">{INTERVIEW_TYPE_INFO[t].desc}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 질문 수 — PT는 발표 1개 + 꼬리질문으로 고정 */}
+              {interviewType !== 'pt' && <div>
+                <div className="flex justify-between items-center border-b border-neutral-700 pb-2 mb-6">
+                  <span className="text-sm text-neutral-300">B. 질문 수</span>
                   <span className="text-xs text-neutral-500">{questionCount}개</span>
                 </div>
                 <div className="flex items-center justify-center gap-6">
@@ -191,12 +216,12 @@ export default function SetupPage() {
                     +
                   </button>
                 </div>
-              </div>
+              </div>}
 
-              {/* 자기소개서 */}
-              <div>
+              {/* 자기소개서 — PT는 주제 발표라 사용하지 않음 */}
+              {interviewType !== 'pt' && <div>
                 <div className="flex justify-between items-center border-b border-neutral-700 pb-2 mb-6">
-                  <span className="text-sm text-neutral-300">B. 자기소개서 <span className="text-neutral-500">(선택 · PDF 5MB 이하 · 첨부 시 자소서 기반 질문 출제)</span></span>
+                  <span className="text-sm text-neutral-300">C. 자기소개서 <span className="text-neutral-500">(선택 · PDF 5MB 이하 · 첨부 시 자소서 기반 질문 출제)</span></span>
                   {coverLetterFile && (
                     <span className="text-xs text-neutral-500 truncate max-w-[200px]">
                       {coverLetterFile.name}
@@ -219,7 +244,7 @@ export default function SetupPage() {
                     <span className="text-xs text-neutral-400">{coverLetterFile ? '파일 변경' : '파일 첨부하기'}</span>
                   </button>
                 </div>
-              </div>
+              </div>}
             </div>
           </div>
         )}
@@ -233,7 +258,7 @@ export default function SetupPage() {
           disabled={!canNext || starting}
           className="px-6 py-3 bg-orange-500 hover:bg-orange-400 disabled:bg-neutral-700 disabled:text-neutral-500 text-white text-sm font-medium rounded-full transition-colors"
         >
-          {step < 3 ? '다음 →' : starting ? (coverLetterFile ? '자소서 분석 중...' : '준비 중...') : '면접 시작 →'}
+          {step < 3 ? '다음 →' : starting ? (interviewType === 'pt' ? 'PT 주제 준비 중...' : coverLetterFile ? '자소서 분석 중...' : '준비 중...') : '면접 시작 →'}
         </button>
       </div>
     </div>

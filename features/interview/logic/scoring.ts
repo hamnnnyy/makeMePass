@@ -24,7 +24,7 @@ export function scoreNonVerbal(s: NonVerbalSummary) {
 }
 
 const IDEAL_LENGTH: Record<AnswerKind, [number, number]> = {
-  intro: [45, 90], main: [30, 90], followUp: [15, 60], closing: [10, 60],
+  intro: [45, 90], main: [30, 90], followUp: [15, 60], closing: [10, 60], pt: [120, 180],
 };
 
 // 답변 시간 배분 점수 (0-100)

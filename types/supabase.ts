@@ -63,10 +63,11 @@ export interface Database {
           total_questions: number;
           duration_seconds: number | null;
           video_url: string | null;
+          interview_type: 'general' | 'personality' | 'job' | 'executive' | 'pt';  // migrations/20260928010000
           started_at: string;
           ended_at: string | null;
         };
-        Insert: Omit<Database['public']['Tables']['interview_sessions']['Row'], 'id' | 'started_at'>;
+        Insert: Omit<Database['public']['Tables']['interview_sessions']['Row'], 'id' | 'started_at' | 'interview_type'> & { interview_type?: Database['public']['Tables']['interview_sessions']['Row']['interview_type'] };
         Update: Partial<Database['public']['Tables']['interview_sessions']['Insert']>;
         Relationships: [
           { foreignKeyName: 'interview_sessions_organization_id_fkey'; columns: ['organization_id']; isOneToOne: false; referencedRelation: 'organizations'; referencedColumns: ['id'] },

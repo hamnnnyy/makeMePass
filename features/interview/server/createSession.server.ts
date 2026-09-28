@@ -8,6 +8,7 @@ import { sampleN } from '@/lib/utils/sample';
 import { CLOSING_QUESTION, INTRO_QUESTION, SEQUENCE_STEP } from '@/lib/constants/interview';
 import { INTERVIEWER_ROLES, type InterviewerRole } from '@/lib/constants/roles';
 import type { InterviewMode } from '@/lib/constants/modes';
+import { INTERVIEW_TYPES, INTERVIEW_TYPE_INFO, PT_TOPIC_PREFIX, type InterviewType } from '@/lib/constants/interviewTypes';
 
 type Planned = { text: string; role: InterviewerRole; questionId: string | null };
 
@@ -51,9 +52,32 @@ async function readCoverLetter(file: File, orgName: string, count: number) {
   };
 }
 
+// PT면접 주제: 기관 업무와 연결된 실제형 과제
+async function makePtTopic(orgName: string, orgDesc: string | null): Promise<string> {
+  const res = await generateWithFallback(MODELS.evaluation, {
+    contents: `${orgName}${orgDesc ? `(${orgDesc})` : ''} 신입 공채 PT면접 주제를 하나 만드세요. 기관의 실제 사업·공공 이슈와 연결되고, 3분 발표로 해결 방안을 제시할 수 있는 과제여야 합니다.`,
+    config: {
+      responseMimeType: 'application/json',
+      responseJsonSchema: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', description: '주제 한 줄 (40자 이내)' },
+          background: { type: 'string', description: '배경 상황 1~2문장' },
+          task: { type: 'string', description: '지원자가 발표할 과제 1문장' },
+        },
+        required: ['title', 'background', 'task'],
+      },
+    },
+  });
+  const t = JSON.parse(res.text ?? '{}') as { title?: string; background?: string; task?: string };
+  if (!t.title) throw new Error('PT 주제를 만들지 못했습니다.');
+  return `${PT_TOPIC_PREFIX}${t.title}\n배경: ${t.background ?? ''}\n과제: ${t.task ?? ''}`;
+}
+
 export default async function createSession(
   orgCode: string,
   mode: InterviewMode,
+  interviewType: InterviewType,
   questionCount: number,
   coverLetterFile: File | null,
 ) {
@@ -64,26 +88,29 @@ export default async function createSession(
 
   const { data: org, error: orgError } = await supabase
     .from('organizations')
-    .select('id, name_ko')
+    .select('id, name_ko, description')
     .eq('code', orgCode)
     .single();
   if (orgError || !org) throw new Error(`기관을 찾을 수 없습니다: ${orgCode}`);
 
   const count = Math.max(3, Math.min(10, Math.floor(questionCount)));
+  const type: InterviewType = INTERVIEW_TYPES.includes(interviewType) ? interviewType : 'general';
+  const categories = INTERVIEW_TYPE_INFO[type].categories;
 
   // 공통 질문 + question_organizations 로 이 기관에 연결된 질문
   const [{ data: general }, { data: linked }] = await Promise.all([
-    supabase.from('questions').select('id, text, target_role').eq('is_general', true),
-    supabase.from('question_organizations').select('questions(id, text, target_role)').eq('organization_id', org.id),
+    supabase.from('questions').select('id, text, target_role, category').eq('is_general', true),
+    supabase.from('question_organizations').select('questions(id, text, target_role, category)').eq('organization_id', org.id),
   ]);
   const byId = new Map((general ?? []).map((q) => [q.id, q]));
   for (const row of linked ?? []) if (row.questions) byId.set(row.questions.id, row.questions);
-  const others = [...byId.values()];
+  // 면접 유형에 맞는 카테고리만 (인성/직무/임원)
+  const others = [...byId.values()].filter((q) => !categories || categories.includes(q.category));
 
   // 실제 면접 순서: 1분 자기소개 → (자소서 질문) → 본 질문 → 마지막 한마디
   let coverLetterId: string | null = null;
   let clQuestions: Planned[] = [];
-  if (coverLetterFile && coverLetterFile.size > 0) {
+  if (type !== 'pt' && coverLetterFile && coverLetterFile.size > 0) {
     if (coverLetterFile.type !== 'application/pdf') throw new Error('자기소개서는 PDF만 지원합니다.');
     if (coverLetterFile.size > MAX_PDF_BYTES) throw new Error('자기소개서는 5MB 이하만 가능합니다.');
     const cl = await readCoverLetter(coverLetterFile, org.name_ko, Math.min(3, Math.floor((count - 1) / 2)));
@@ -97,7 +124,11 @@ export default async function createSession(
   }
 
   const mainCount = count - 1 - clQuestions.length;
-  const planned: Planned[] = [
+  // PT: 주제 발표 1개 + (발표에 대한 꼬리질문은 답변 평가 때 생성) + 마지막 한마디
+  const planned: Planned[] = type === 'pt' ? [
+    { text: await makePtTopic(org.name_ko, org.description), role: 'exec', questionId: null },
+    { text: CLOSING_QUESTION, role: 'exec', questionId: null },
+  ] : [
     { text: INTRO_QUESTION, role: 'hr', questionId: null },
     ...clQuestions,
     ...sampleN(others, mainCount).map((q) => ({ text: q.text, role: q.target_role, questionId: q.id })),
@@ -110,6 +141,8 @@ export default async function createSession(
       user_id: user.id,
       organization_id: org.id,
       mode,
+      // 종합은 컬럼 기본값 사용 (interview_type 마이그레이션 전에도 동작)
+      ...(type !== 'general' ? { interview_type: type } : {}),
       status: 'in_progress' as const,
       result: 'pending' as const,
       total_questions: planned.length,

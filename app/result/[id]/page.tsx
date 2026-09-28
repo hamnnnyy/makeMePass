@@ -9,6 +9,7 @@ import { getPersonaNames } from '@/features/interviewer/personaNames';
 import { getPlayerStats } from '@/features/gamification/server/playerStats';
 import { levelInfo, rankName, sessionXp, ORB_COLORS } from '@/features/gamification/logic/level';
 import { LevelBar } from '@/features/gamification/components/LevelBar';
+import { INTERVIEW_TYPE_INFO } from '@/lib/constants/interviewTypes';
 
 const TITLE = {
   pass: '최종 합격',
@@ -97,7 +98,9 @@ export default async function ResultPage({ params }: { params: Promise<{ id: str
     <div className="min-h-screen bg-[#141414] text-white flex flex-col px-6 md:px-8 py-6 gap-8">
       {/* Top bar */}
       <div className="flex items-center justify-between">
-        <span className="text-sm md:text-base font-medium">{org?.code} · {formatDate(session.started_at)}</span>
+        <span className="text-sm md:text-base font-medium">
+          {org?.code} · {INTERVIEW_TYPE_INFO[session.interview_type ?? 'general'].label} · {formatDate(session.started_at)}
+        </span>
         <h1 className="text-sm md:text-base font-medium">{abandoned ? '면접 중단' : TITLE[result]}</h1>
         <Link href="/" className="text-sm md:text-base hover:text-neutral-300 transition-colors">나가기 →</Link>
       </div>

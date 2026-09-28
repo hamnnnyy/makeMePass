@@ -18,7 +18,7 @@ export async function getPlayerStats(supabase: SupabaseClient<Database>, userId:
     supabase.from('streaks').select('current_streak, longest_streak').eq('user_id', userId).maybeSingle(),
     supabase
       .from('interview_sessions')
-      .select('id, result, status, mode, started_at, organizations(code)')
+      .select('*, organizations(code)')  // *: interview_type 마이그레이션 전에도 동작
       .eq('user_id', userId)
       .neq('status', 'in_progress')
       .order('started_at', { ascending: false })

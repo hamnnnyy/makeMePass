@@ -5,6 +5,7 @@ import { MODELS } from '@/lib/gemini/models';
 import { createClient } from '@/lib/supabase/server';
 import { uploadSessionAudio } from '@/lib/storage/uploadBlob';
 import { CLOSING_QUESTION, FOLLOW_UP_OFFSET, INTRO_QUESTION, MODE_TONE, type AnswerKind } from '@/lib/constants/interview';
+import { INTERVIEW_TYPE_INFO, PT_FOLLOW_UPS, PT_TOPIC_PREFIX } from '@/lib/constants/interviewTypes';
 import { INTERVIEWER_ROLES, type InterviewerRole } from '@/lib/constants/roles';
 import type { InterviewMode } from '@/lib/constants/modes';
 import type { NonVerbalSummary } from '@/features/mediapipe/logic/nonVerbal';
@@ -101,12 +102,12 @@ export async function evaluateAnswer(sessionQuestionId: string, formData: FormDa
   const [{ data: session }, { data: history }, { data: personas }] = await Promise.all([
     supabase
       .from('interview_sessions')
-      .select('mode, cover_letter_id, organizations(name_ko, description, core_values, talent_profile, pass_threshold, veto_threshold, eliminate_threshold), cover_letters(items)')
+      .select('*, organizations(name_ko, description, core_values, talent_profile, pass_threshold, veto_threshold, eliminate_threshold), cover_letters(items)')
       .eq('id', sq.session_id)
       .single(),
     supabase
       .from('session_questions')
-      .select('question_text, transcript, hr_after, tech_after, exec_after')
+      .select('question_text, transcript, is_follow_up, hr_after, tech_after, exec_after')
       .eq('session_id', sq.session_id)
       .not('answered_at', 'is', null)
       .order('answered_at'),
@@ -140,7 +141,12 @@ export async function evaluateAnswer(sessionQuestionId: string, formData: FormDa
 
   const role = sq.asked_by_role as InterviewerRole;
   const isClosing = sq.question_text === CLOSING_QUESTION;
+  const isPt = session.interview_type === 'pt';
+  // PT: 발표 뒤 꼬리질문을 최대 PT_FOLLOW_UPS 개까지 이어서 한다 (지금 답한 문항 포함해 센다)
+  const followUpsSoFar = (history ?? []).filter((h) => h.is_follow_up).length + (sq.is_follow_up ? 1 : 0);
+  const allowFollowUp = !isClosing && (isPt ? followUpsSoFar < PT_FOLLOW_UPS : !sq.is_follow_up);
   const kind: AnswerKind = isClosing ? 'closing'
+    : sq.question_text.startsWith(PT_TOPIC_PREFIX) ? 'pt'
     : sq.is_follow_up ? 'followUp'
     : sq.question_text === INTRO_QUESTION ? 'intro'
     : 'main';
@@ -157,6 +163,7 @@ ${isText
 [기관] ${org.name_ko}${org.description ? ` — ${org.description}` : ''}
 ${org.core_values ? `[핵심가치/인재상] ${JSON.stringify(org.core_values)} ${JSON.stringify(org.talent_profile ?? '')}` : ''}
 ${coverLetter ? `[지원자 자기소개서 요약] ${JSON.stringify(coverLetter)}` : ''}
+[면접 유형] ${INTERVIEW_TYPE_INFO[session.interview_type ?? 'general'].focus}
 [면접관 말투] ${MODE_TONE[session.mode as InterviewMode]}
 ${(personas ?? []).filter((p) => p.mode === session.mode)
   .map((p) => `- ${p.role}: ${p.label_ko}${p.position_ko ? `(${p.position_ko})` : ''}. ${p.tone_description ?? ''}`).join('\n')}
@@ -164,7 +171,7 @@ ${(personas ?? []).filter((p) => p.mode === session.mode)
 [이전 문답]
 ${prevQA || '(없음)'}
 
-[현재 질문] (${role} 면접관, ${kind === 'intro' ? '1분 자기소개' : kind === 'followUp' ? '꼬리질문' : kind === 'closing' ? '마지막 한마디' : '본 질문'})
+[현재 질문] (${role} 면접관, ${kind === 'intro' ? '1분 자기소개' : kind === 'pt' ? 'PT 발표 (준비 2분, 발표 3분)' : kind === 'followUp' ? '꼬리질문' : kind === 'closing' ? '마지막 한마디' : '본 질문'})
 ${sq.question_text}
 
 ${isText ? `${nvLine}\n[지원자 답변(텍스트 입력)]\n${answerText}` : `${nvLine}
@@ -175,7 +182,16 @@ ${isText ? `${nvLine}\n[지원자 답변(텍스트 입력)]\n${answerText}` : `$
 - 실제 공기업 면접처럼 엄격하게. 평범한 답변은 deltas 0 근처, 인상적이면 +, 부실하면 -.
 - 답변이 없거나 질문과 무관하면 score_content 0~20, deltas는 -8 이하.
 - 이전 답변과 모순되거나 자소서와 다르면 감점하고 꼬리질문으로 확인한다.
-- ${sq.is_follow_up || isClosing ? '이번 질문에는 꼬리질문을 하지 않는다 (follow_up.ask=false).' : '꼬리질문은 꼭 필요할 때만 한다.'}`;
+- ${!allowFollowUp ? '이번 질문에는 꼬리질문을 하지 않는다 (follow_up.ask=false).'
+  : isPt ? '발표 내용의 허점·근거·실행 방안을 파고드는 꼬리질문을 반드시 한다 (follow_up.ask=true). 앞서 한 질문과 겹치지 않게 한다.'
+  : '꼬리질문은 꼭 필요할 때만 한다.'}`;
+
+  const uploading: Promise<string | null> = !isText && audioFile instanceof File
+    ? uploadSessionAudio(audioFile, user.id, sq.session_id, sessionQuestionId).catch((e) => {
+        console.error('audio upload failed', e);
+        return null;
+      })
+    : Promise.resolve(null);
 
   const response = await generateWithFallback(MODELS.evaluation, {
     contents: [{
@@ -202,15 +218,8 @@ ${isText ? `${nvLine}\n[지원자 답변(텍스트 입력)]\n${answerText}` : `$
     : { hr: Math.round(verbalDeltas.hr), tech: Math.round(verbalDeltas.tech), exec: Math.round(verbalDeltas.exec) };
   const favor = applyDeltas(favorBefore, deltas);
 
-  // 음성 저장 실패해도 평가는 계속
-  let audioPath: string | null = null;
-  try {
-    if (!isText && audioFile instanceof File) {
-      audioPath = await uploadSessionAudio(audioFile, user.id, sq.session_id, sessionQuestionId);
-    }
-  } catch (e) {
-    console.error('audio upload failed', e);
-  }
+  // 녹음 저장은 평가와 동시에 진행 (실패해도 평가는 계속)
+  const audioPath = await uploading;
 
   await supabase.from('session_questions').update({
     audio_url: audioPath,
@@ -247,7 +256,7 @@ ${isText ? `${nvLine}\n[지원자 답변(텍스트 입력)]\n${answerText}` : `$
 
   let followUp: EvaluateResult['followUp'] = null;
   const fuText = v.follow_up?.question?.trim();
-  if (!eliminated && v.follow_up?.ask && fuText && !sq.is_follow_up && !isClosing) {
+  if (!eliminated && v.follow_up?.ask && fuText && allowFollowUp) {
     const fuRole = INTERVIEWER_ROLES.includes(v.follow_up.role) ? v.follow_up.role : role;
     const { data: inserted } = await supabase
       .from('session_questions')
@@ -256,7 +265,8 @@ ${isText ? `${nvLine}\n[지원자 답변(텍스트 입력)]\n${answerText}` : `$
         question_id: null,
         question_text: fuText,
         asked_by_role: fuRole,
-        sequence: sq.sequence + FOLLOW_UP_OFFSET, // 원 질문 바로 뒤
+        // 원 질문 바로 뒤. PT 는 꼬리질문이 이어지므로 +1 씩 (다음 본 문항은 +10)
+        sequence: sq.sequence + (isPt ? 1 : FOLLOW_UP_OFFSET),
         is_follow_up: true,
         parent_session_question_id: sessionQuestionId,
         audio_url: null, transcript: null, duration_seconds: null,

@@ -19,15 +19,17 @@ import { SelfCam } from '@/features/interview/components/SelfCam';
 import { endSession } from '@/features/interview/server/endSession.server';
 import { evaluateAnswer } from '@/features/interview/server/evaluateAnswer.server';
 import type { FavorState } from '@/features/interview/server/evaluateAnswer.server';
+import { PT_INTRO_LINE, PT_PREP_SEC, PT_TOPIC_PREFIX } from '@/lib/constants/interviewTypes';
 import type { Database } from '@/types/supabase';
 
 type Session = Database['public']['Tables']['interview_sessions']['Row'];
 type SessionQuestion = Database['public']['Tables']['session_questions']['Row'];
-type Phase = 'lobby' | 'speaking' | 'answering' | 'evaluating' | 'error' | 'ending';
+type Phase = 'lobby' | 'speaking' | 'preparing' | 'answering' | 'evaluating' | 'error' | 'ending';
 
 const PHASE_LABEL: Record<Phase, string> = {
   lobby: '입장 대기',
   speaking: '면접관 질문 중',
+  preparing: 'PT 준비 중',
   answering: '답변 중',
   evaluating: '면접관이 메모하는 중...',
   error: '오류',
@@ -36,6 +38,7 @@ const PHASE_LABEL: Record<Phase, string> = {
 
 function answerKind(q: SessionQuestion): AnswerKind {
   if (q.question_text === CLOSING_QUESTION) return 'closing';
+  if (q.question_text.startsWith(PT_TOPIC_PREFIX)) return 'pt';
   if (q.is_follow_up) return 'followUp';
   return q.question_text === INTRO_QUESTION ? 'intro' : 'main';
 }
@@ -76,8 +79,10 @@ export function SessionView({
   const [deltas, setDeltas] = useState<{ values: FavorState; key: number } | null>(null);
   const [textMode, setTextMode] = useState(false);  // 말하기 어려울 때 텍스트로 답변
   const [answerText, setAnswerText] = useState('');
+  const [ptMemo, setPtMemo] = useState('');  // PT 준비 메모 (평가에 쓰지 않음, 발표 중 참고용)
   const trackerRef = useRef(createTracker());
   const busyRef = useRef(false);
+  const beginningRef = useRef(false);
 
   const timerFmt = useTimer(phase !== 'lobby' && phase !== 'ending');
   const { videoRef, error: camError } = useMediaStream();
@@ -109,18 +114,35 @@ export function SessionView({
     setTextMode(false);
     setAnswerText('');
     setPhase('speaking');
+    // PT 주제는 길어서 읽지 않고 화면에 띄운 뒤 준비 시간을 준다
+    if (answerKind(q) === 'pt') {
+      await say(PT_INTRO_LINE, q.asked_by_role as InterviewerRole);
+      setRemaining(PT_PREP_SEC);
+      setPhase('preparing');
+      return;
+    }
     await say(q.question_text, q.asked_by_role as InterviewerRole);
+    await beginAnswer(i);
+  }
+
+  async function beginAnswer(i: number) {
+    // PT: '발표 시작' 버튼과 준비 시간 종료가 겹쳐도 한 번만 시작
+    if (beginningRef.current) return;
+    beginningRef.current = true;
+    const q = questionsRef.current[i];
     try {
       await recorder.start();
     } catch {
       setError('마이크 권한이 필요합니다.');
       setPhase('error');
+      beginningRef.current = false;
       return;
     }
     // 질문이 끝나자마자 녹음 시작. 말을 시작하기까지 걸린 시간도 평가에 들어간다.
     trackerRef.current = createTracker();
     setRemaining(ANSWER_LIMIT_SEC[answerKind(q)]);
     setPhase('answering');
+    beginningRef.current = false;
     const next = questionsRef.current[i + 1];
     if (next) prefetch(next.question_text, next.asked_by_role as InterviewerRole);
   }
@@ -192,16 +214,20 @@ export function SessionView({
     }
   }
 
-  // 답변 중: 비언어 지표를 10fps로 누적하고 제한 시간을 센다
+  // 답변 중: 비언어 지표를 10fps로 누적하고 제한 시간을 센다. PT 준비 중에는 시간만 센다.
   useEffect(() => {
-    if (phase !== 'answering') return;
-    const sample = setInterval(() => addFrame(trackerRef.current, resultRef.current, performance.now()), 100);
+    if (phase !== 'answering' && phase !== 'preparing') return;
+    const sample = phase === 'answering'
+      ? setInterval(() => addFrame(trackerRef.current, resultRef.current, performance.now()), 100)
+      : undefined;
     const tick = setInterval(() => setRemaining((r) => r - 1), 1000);
     return () => { clearInterval(sample); clearInterval(tick); };
   }, [phase, resultRef]);
 
   useEffect(() => {
-    if (phase === 'answering' && remaining <= 0) finishAnswer();
+    if (remaining > 0) return;
+    if (phase === 'answering') finishAnswer();
+    if (phase === 'preparing') beginAnswer(idx);
   }, [phase, remaining]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleEnd() {
@@ -221,7 +247,7 @@ export function SessionView({
         </div>
         <span className="text-sm font-medium text-neutral-300">
           {PHASE_LABEL[phase]}
-          {phase === 'answering' && (
+          {(phase === 'answering' || phase === 'preparing') && (
             <span className={`ml-2 font-mono ${remaining <= 10 ? 'text-red-400' : 'text-neutral-500'}`}>
               {remaining}s
             </span>
@@ -246,6 +272,11 @@ export function SessionView({
           <span className="text-neutral-400">
             카메라를 정면에 두고, 면접관(화면)을 바라보며 답변하세요. 질문이 끝나면 바로 녹음이 시작됩니다.
           </span>
+        ) : currentQuestion && answerKind(currentQuestion) === 'pt' ? (
+          <div className="text-left w-full whitespace-pre-line">
+            <p className="text-xs text-orange-400 mb-1">PT 주제 · 준비 {PT_PREP_SEC / 60}분 · 발표 최대 3분</p>
+            {currentQuestion.question_text.slice(PT_TOPIC_PREFIX.length)}
+          </div>
         ) : currentQuestion ? (
           <span>
             <span className="text-neutral-500 mr-2">
@@ -273,6 +304,17 @@ export function SessionView({
         </div>
         {camError && <p className="text-xs text-red-400">{camError}</p>}
 
+        {currentQuestion && answerKind(currentQuestion) === 'pt' && (phase === 'preparing' || phase === 'answering') && (
+          <textarea
+            value={ptMemo}
+            onChange={(e) => setPtMemo(e.target.value)}
+            readOnly={phase === 'answering'}
+            rows={4}
+            placeholder="발표 메모 (평가에 쓰이지 않습니다)"
+            className="w-full max-w-xl rounded-xl bg-neutral-900 border border-neutral-700 focus:border-orange-500 outline-none px-4 py-3 text-sm leading-relaxed resize-none"
+          />
+        )}
+
         {phase === 'answering' && textMode && (
           <div className="w-full max-w-xl flex flex-col gap-1">
             <textarea
@@ -297,6 +339,13 @@ export function SessionView({
               className="px-6 h-12 rounded-full bg-orange-500 hover:bg-orange-400 text-sm font-medium disabled:opacity-40"
             >
               {!faceReady ? '카메라 준비 중...' : startIdx === 0 ? '면접 입장' : '이어서 진행'}
+            </button>
+          ) : phase === 'preparing' ? (
+            <button
+              onClick={() => beginAnswer(idx)}
+              className="px-6 h-12 rounded-full bg-orange-500 hover:bg-orange-400 text-sm font-medium"
+            >
+              발표 시작
             </button>
           ) : phase === 'error' ? (
             <button
