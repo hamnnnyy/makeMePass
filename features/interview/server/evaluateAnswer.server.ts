@@ -29,6 +29,7 @@ interface Verbal {
   score_fluency: number;
   deltas: RoleValues;
   delta_reasons: Record<InterviewerRole, string>;
+  inner_voices: Record<InterviewerRole, string>;
   strengths: string;
   improvement: string;
   nonverbal_feedback: string;
@@ -56,6 +57,12 @@ const VERBAL_SCHEMA = {
       properties: { hr: { type: 'string' }, tech: { type: 'string' }, exec: { type: 'string' } },
       required: ['hr', 'tech', 'exec'],
     },
+    inner_voices: {
+      type: 'object',
+      description: '각 면접관이 이 답변을 듣고 속으로 한 생각. [면접관 말투]와 각 면접관 페르소나 말투 그대로, 캐릭터 대사처럼 한 줄(40자 이내). deltas 방향과 감정이 일치해야 한다',
+      properties: { hr: { type: 'string' }, tech: { type: 'string' }, exec: { type: 'string' } },
+      required: ['hr', 'tech', 'exec'],
+    },
     strengths: { type: 'string', description: '잘한 점 한 문장' },
     improvement: { type: 'string', description: '고칠 점 한 문장. 가능하면 더 나은 표현 예시 포함' },
     nonverbal_feedback: { type: 'string', description: '[비언어 측정] 값을 근거로 시선·표정·자세·긴장도에 대한 조언 한 문장. 측정값이 없으면 빈 문자열' },
@@ -67,7 +74,7 @@ const VERBAL_SCHEMA = {
       required: ['ask', 'role', 'question'],
     },
   },
-  required: ['transcript', 'filler_count', 'score_content', 'score_fluency', 'deltas', 'delta_reasons', 'strengths', 'improvement', 'nonverbal_feedback', 'reaction', 'follow_up'],
+  required: ['transcript', 'filler_count', 'score_content', 'score_fluency', 'deltas', 'delta_reasons', 'inner_voices', 'strengths', 'improvement', 'nonverbal_feedback', 'reaction', 'follow_up'],
 };
 
 const num = (v: unknown, lo: number, hi: number) =>
@@ -252,6 +259,7 @@ ${isText ? `${nvLine}\n[지원자 답변(텍스트 입력)]\n${answerText}` : `$
       posture: nvScores?.posture ?? null,
       // 복기에서 호감도 변화를 '답변 내용' vs '태도·시간 보정'으로 나눠 보여주기 위해 저장
       reasons: v.delta_reasons ?? null,
+      voices: v.inner_voices ?? null,  // 복기에서 면접관 속마음 말풍선으로 보여준다
       verbalDeltas: {
         hr: Math.round(verbalDeltas.hr), tech: Math.round(verbalDeltas.tech), exec: Math.round(verbalDeltas.exec),
       },

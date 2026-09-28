@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
-import { ROLE_LABELS, ROLE_COLORS, INTERVIEWER_ROLES, type InterviewerRole } from '@/lib/constants/roles';
+import { ROLE_LABELS, ROLE_COLORS, ROLE_ACCENT_HEX, INTERVIEWER_ROLES, type InterviewerRole } from '@/lib/constants/roles';
 import { getPersonaNames } from '@/features/interviewer/personaNames';
 
 type ScoreKey = 'score_content' | 'score_fluency' | 'score_eye_contact' | 'score_expression' | 'score_timing';
@@ -15,6 +15,7 @@ interface Feedback {
   nonverbalFeedback?: string;
   posture?: number | null;
   reasons?: Partial<Record<InterviewerRole, string>> | null;
+  voices?: Partial<Record<InterviewerRole, string>> | null;
   verbalDeltas?: Record<InterviewerRole, number>;
   audio?: { speechSpanSec: number; leadingSilenceSec: number; longestPauseSec: number };
 }
@@ -42,13 +43,41 @@ function DeltaBadge({ n, className = '' }: { n: number; className?: string }) {
   return <span className={`rounded-md px-1.5 py-0.5 font-bold tabular-nums ${deltaClass(n)} ${className}`}>{signed(n)}</span>;
 }
 
-// 복기: 호감도 흐름 요약, 영역별 평균, 문항별 득실 근거·녹취·녹음·피드백
+// 도감 카드와 같은 CSS 구슬 (면접관 캐릭터)
+function Orb({ role, size = 28 }: { role: InterviewerRole; size?: number }) {
+  return (
+    <span
+      className="rounded-full shrink-0 inline-block"
+      style={{
+        width: size, height: size,
+        background: `radial-gradient(circle at 35% 30%, #fff 0%, ${ROLE_ACCENT_HEX[role]} 35%, ${ROLE_COLORS[role]} 70%, #000 100%)`,
+        boxShadow: `0 0 ${size / 2}px ${ROLE_ACCENT_HEX[role]}55`,
+      }}
+    />
+  );
+}
+
+// 호감도 하트 게이지. 점선 = 합격선
+function HeartGauge({ value, passLine }: { value: number; passLine: number | null }) {
+  const color = passLine !== null && value >= passLine ? '#f472b6' : '#be185d';
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="text-xs leading-none" style={{ color }}>♥</span>
+      <div className="relative flex-1 h-1.5 rounded-full bg-neutral-700/60">
+        <div className="h-full rounded-full" style={{ width: `${value}%`, background: `linear-gradient(90deg, #9d174d, ${color})` }} />
+        {passLine !== null && <div className="absolute -top-0.5 h-2.5 border-l border-dashed border-white/60" style={{ left: `${passLine}%` }} />}
+      </div>
+    </div>
+  );
+}
+
+// 복기: 호감도 흐름·명장면, 영역별 평균, 문항별 면접관 속마음·득실 근거·녹취·녹음·피드백
 export default async function ReviewPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();
 
   const [{ data: session }, { data: questions }] = await Promise.all([
-    supabase.from('interview_sessions').select('mode').eq('id', id).single(),
+    supabase.from('interview_sessions').select('mode, organizations(pass_threshold)').eq('id', id).single(),
     supabase
       .from('session_questions')
       .select('id, sequence, question_text, asked_by_role, is_follow_up, transcript, filler_count, audio_url, score_content, score_fluency, score_eye_contact, score_expression, score_timing, hr_delta, tech_delta, exec_delta, hr_after, tech_after, exec_after, claude_feedback, answered_at')
@@ -77,6 +106,18 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
   const worst = answered.reduce<(typeof all)[number] | null>((a, q) => (!a || net(q) < net(a) ? q : a), null);
   const last = answered.findLast((q) => q.hr_after !== null);
   const finalFavor = (r: InterviewerRole) => (last?.[`${r}_after`] as number | null) ?? 50;
+  const passLine = (session?.organizations as { pass_threshold: number } | null)?.pass_threshold ?? null;
+
+  // 명장면: 면접관마다 호감도가 가장 크게 오른 문항(반한 순간)과 떨어진 문항(등 돌린 순간)
+  const moments = INTERVIEWER_ROLES.flatMap((r) => {
+    const d = (q: (typeof all)[number]) => q[`${r}_delta`] as number;
+    const up = answered.reduce<(typeof all)[number] | null>((a, q) => (d(q) >= 5 && (!a || d(q) > d(a)) ? q : a), null);
+    const down = answered.reduce<(typeof all)[number] | null>((a, q) => (d(q) <= -5 && (!a || d(q) < d(a)) ? q : a), null);
+    return [
+      ...(up ? [{ role: r, q: up, delta: d(up), kind: '반한 순간' }] : []),
+      ...(down ? [{ role: r, q: down, delta: d(down), kind: '등 돌린 순간' }] : []),
+    ];
+  });
 
   // 녹음은 비공개 버킷이라 1시간짜리 signed URL로 재생
   const paths = answered.map((q) => q.audio_url).filter((p): p is string => !!p);
@@ -109,6 +150,7 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
                     {f}<span className="text-xs text-neutral-500 font-normal">%</span>
                   </span>
                   <DeltaBadge n={f - 50} className="text-[10px] self-start" />
+                  <HeartGauge value={f} passLine={passLine} />
                 </div>
               );
             })}
@@ -130,6 +172,39 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
                 <DeltaBadge n={net(worst)} />
               </a>
             )}
+          </div>
+        </section>
+      )}
+
+      {/* 명장면: 면접관별 반한 순간·등 돌린 순간 */}
+      {moments.length > 0 && (
+        <section className="flex flex-col gap-3">
+          <h2 className="text-xs text-neutral-500 font-medium tracking-widest">명장면</h2>
+          <div className="flex gap-3 overflow-x-auto snap-x pb-1 -mx-5 px-5">
+            {moments.map((m) => {
+              const fb = fbOf(m.q);
+              const line = fb?.voices?.[m.role] ?? fb?.reasons?.[m.role];
+              const up = m.delta > 0;
+              return (
+                <a
+                  key={`${m.role}-${m.kind}`}
+                  href={`#q-${m.q.id}`}
+                  className="snap-start shrink-0 w-60 rounded-2xl p-4 flex flex-col gap-3 border transition-colors hover:bg-neutral-800/80"
+                  style={{ background: up ? '#2a0f1f' : '#141a24', borderColor: up ? '#f472b655' : '#60a5fa33' }}
+                >
+                  <div className="flex items-center gap-2">
+                    <Orb role={m.role} size={32} />
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-[11px] font-bold truncate" style={{ color: ROLE_COLORS[m.role] }}>{names[m.role]}</span>
+                      <span className={`text-sm font-bold ${up ? 'text-pink-300' : 'text-sky-300'}`}>{up ? '♥ ' : '💔 '}{m.kind}</span>
+                    </div>
+                    <DeltaBadge n={m.delta} className="ml-auto text-xs" />
+                  </div>
+                  {line && <p className="text-sm text-neutral-100 leading-relaxed">“{line}”</p>}
+                  <p className="text-[11px] text-neutral-500 truncate">{labelOf.get(m.q.id)} · {m.q.question_text}</p>
+                </a>
+              );
+            })}
           </div>
         </section>
       )}
@@ -180,6 +255,28 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
 
                 {done && (
                   <>
+                    {/* 면접관 속마음 말풍선 */}
+                    {fb?.voices && (
+                      <div className="flex flex-col gap-2">
+                        {INTERVIEWER_ROLES.map((r) => {
+                          const v = fb.voices?.[r];
+                          if (!v) return null;
+                          const d = q[`${r}_delta`] as number;
+                          return (
+                            <div key={r} className="flex items-end gap-2">
+                              <Orb role={r} size={24} />
+                              <div className="flex flex-col gap-0.5 min-w-0">
+                                <span className="text-[10px] font-bold" style={{ color: ROLE_COLORS[r] }}>
+                                  {names[r]} <span className={d > 0 ? 'text-pink-400' : d < 0 ? 'text-sky-400' : 'text-neutral-500'}>{d > 0 ? `♥ +${d}` : d < 0 ? `💔 ${d}` : '·'}</span>
+                                </span>
+                                <p className="text-sm text-neutral-100 bg-neutral-800 rounded-2xl rounded-bl-sm px-3 py-2 leading-relaxed">{v}</p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
                     {/* 면접관별 득실과 이유 */}
                     <div className="rounded-xl bg-neutral-950/60 p-3 flex flex-col gap-2.5">
                       {INTERVIEWER_ROLES.map((r) => {
