@@ -26,7 +26,9 @@ export default function LoginPage() {
       return;
     }
 
-    router.push('/');
+    // ?next=/settings 처럼 보호된 페이지에서 왔으면 그리로 돌려보낸다 (내부 경로만 허용)
+    const next = new URLSearchParams(window.location.search).get('next');
+    router.push(next?.startsWith('/') && !next.startsWith('//') ? next : '/');
     router.refresh();
   }
 

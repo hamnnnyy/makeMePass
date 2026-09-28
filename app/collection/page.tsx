@@ -16,7 +16,7 @@ export default async function CollectionPage({ searchParams }: { searchParams: P
   const tab = (await searchParams).tab === 'titles' ? 'titles' : 'personas';
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect('/login');
+  if (!user) redirect('/login?next=/collection');
 
   // 수집 기록·숨김 칭호는 service role 로 읽는다 (user.id 로 한정)
   const admin = createServiceClient();

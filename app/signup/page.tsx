@@ -4,12 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-
-function validatePassword(pw: string): string | null {
-  if (pw.length < 8) return '비밀번호는 8자 이상이어야 합니다.';
-  if (!/[!@#$%^&*(),.?":{}|<>]/.test(pw)) return '특수문자를 포함해야 합니다.';
-  return null;
-}
+import { validatePassword } from '@/lib/utils/password';
 
 export default function SignUpPage() {
   const router = useRouter();

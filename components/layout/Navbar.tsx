@@ -2,6 +2,7 @@ import Link from "next/link"
 import { createClient } from "@/lib/supabase/server"
 import { createClient as createServiceClient } from "@/lib/supabase/service-role"
 import { RARITY_COLOR } from "@/features/gamification/constants"
+import { signOut } from "@/features/auth/server/account.server"
 
 // 로그인하면 [장착 칭호] 이름, 아니면 로그인/회원가입
 const Navbar = async () => {
@@ -31,14 +32,21 @@ const Navbar = async () => {
             <nav className="flex items-center gap-2 text-sm text-white/80">
                 <Link href="/collection" className="hover:text-white">도감</Link>
                 <span className="text-white/30">|</span>
-                {user ? (<>
-                    <Link href="/settings" className="hover:text-white">꾸미기</Link>
-                    <span className="text-white/30">|</span>
-                    <Link href="/collection?tab=titles" className="hover:text-white">
-                        {title && <span style={{ color: RARITY_COLOR[title.rarity] }}>[{title.name_ko}] </span>}
-                        {name}
-                    </Link>
-                </>) : (
+                {user ? (
+                    <details className="relative">
+                        <summary className="list-none cursor-pointer hover:text-white select-none">
+                            {title && <span style={{ color: RARITY_COLOR[title.rarity] }}>[{title.name_ko}] </span>}
+                            {name} ▾
+                        </summary>
+                        <div className="absolute right-0 mt-2 w-40 rounded-xl bg-neutral-900 border border-neutral-800 py-1 shadow-xl flex flex-col text-sm">
+                            <Link href="/settings" className="px-4 py-2 hover:bg-neutral-800">프로필 · 설정</Link>
+                            <Link href="/collection?tab=titles" className="px-4 py-2 hover:bg-neutral-800">칭호</Link>
+                            <form action={signOut}>
+                                <button className="w-full text-left px-4 py-2 hover:bg-neutral-800 text-neutral-400">로그아웃</button>
+                            </form>
+                        </div>
+                    </details>
+                ) : (
                     <>
                         <Link href="/login" className="hover:text-white">로그인</Link>
                         <span className="text-white/30">|</span>
