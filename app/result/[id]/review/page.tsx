@@ -4,6 +4,7 @@ import { ROLE_LABELS, ROLE_COLORS, ROLE_ACCENT_HEX, INTERVIEWER_ROLES, type Inte
 import { getPersonaNames } from '@/features/interviewer/personaNames';
 import { Portrait, moodOf } from '@/features/interviewer/components/Portrait';
 import type { InterviewMode } from '@/lib/constants/modes';
+import { PageHeader } from '@/components/layout/PageHeader';
 
 type ScoreKey = 'score_content' | 'score_fluency' | 'score_eye_contact' | 'score_expression' | 'score_timing';
 const SCORE_GROUPS: { title: string; items: [ScoreKey, string][] }[] = [
@@ -142,12 +143,9 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
   const audioUrl = new Map((signedUrls ?? []).map((s) => [s.path, s.signedUrl]));
 
   return (
-    <div className="min-h-screen bg-[#141414] text-white flex flex-col px-5 py-6 max-w-xl mx-auto w-full gap-6">
-      <div className="flex items-center justify-between">
-        <Link href={`/result/${id}`} className="text-sm text-neutral-400 hover:text-white transition-colors">← 결과</Link>
-        <h1 className="text-sm font-medium">복기</h1>
-        <div className="w-12" />
-      </div>
+    <>
+    <PageHeader title="복기" back={{ href: `/result/${id}`, label: '결과' }} />
+    <div className="min-h-screen bg-night text-white flex flex-col px-5 py-6 max-w-xl mx-auto w-full gap-6">
 
       {answered.length === 0 && <p className="text-sm text-neutral-500 text-center py-12">답변한 문항이 없습니다.</p>}
 
@@ -322,7 +320,7 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
                     {(fb?.strengths || fb?.improvement || fb?.nonverbalFeedback) && (
                       <ul className="flex flex-col gap-1.5 text-xs leading-relaxed">
                         {fb?.strengths && <li className="flex gap-2"><span className="text-green-400 shrink-0">잘한 점</span><span className="text-neutral-300">{fb.strengths}</span></li>}
-                        {fb?.improvement && <li className="flex gap-2"><span className="text-orange-400 shrink-0">고칠 점</span><span className="text-neutral-300">{fb.improvement}</span></li>}
+                        {fb?.improvement && <li className="flex gap-2"><span className="text-pink-400 shrink-0">고칠 점</span><span className="text-neutral-300">{fb.improvement}</span></li>}
                         {fb?.nonverbalFeedback && <li className="flex gap-2"><span className="text-sky-400 shrink-0">태도</span><span className="text-neutral-300">{fb.nonverbalFeedback}</span></li>}
                       </ul>
                     )}
@@ -365,10 +363,11 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
 
       <Link
         href="/setup"
-        className="w-full py-3 bg-orange-500 hover:bg-orange-400 transition-colors text-white text-sm font-medium rounded-full text-center"
+        className="w-full py-3 bg-pink-500 hover:bg-pink-400 transition-colors text-white text-sm font-medium rounded-full text-center"
       >
         다시 도전하기
       </Link>
     </div>
+    </>
   );
 }

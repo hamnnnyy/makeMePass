@@ -7,6 +7,7 @@ import { INTERVIEW_MODES, MODE_LABELS } from '@/lib/constants/modes';
 import { PersonaCard } from '@/features/interviewer/components/PersonaCard';
 import { RARITY_COLOR, RARITY_LABEL } from '@/features/gamification/constants';
 import { equipTitle } from '@/features/gamification/server/equipTitle.server';
+import { PageHeader } from '@/components/layout/PageHeader';
 
 const formatDate = (iso: string) =>
   new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul' }).format(new Date(iso)).replaceAll('-', '.');
@@ -37,21 +38,23 @@ export default async function CollectionPage({ searchParams }: { searchParams: P
   const count = (personas ?? []).filter((p) => ownedIds.has(p.id)).length;
 
   return (
-    <div className="min-h-screen bg-[#141414] text-white px-6 md:px-8 py-6 flex flex-col gap-8">
-      <div className="flex items-center justify-between">
-        <Link href="/" className="text-sm text-neutral-400 hover:text-white transition-colors">← 홈</Link>
-        <h1 className="text-sm font-medium">도감</h1>
-        <span className="text-sm text-neutral-400">
-          {tab === 'personas' ? `${count} / ${total}` : `${earnedAt.size} / ${titles?.length ?? 0}`}
-        </span>
-      </div>
+    <div className="min-h-screen bg-night text-white flex flex-col gap-8 pb-12">
+      <PageHeader
+        title="도감"
+        back={{ href: '/', label: '홈' }}
+        right={
+          <span className="font-display text-lg text-pink-400 tabular-nums">
+            {tab === 'personas' ? `${count} / ${total}` : `${earnedAt.size} / ${titles?.length ?? 0}`}
+          </span>
+        }
+      />
 
       <nav className="max-w-2xl mx-auto w-full grid grid-cols-2 text-sm border-b border-neutral-800">
         {([['personas', '면접관'], ['titles', '칭호']] as const).map(([key, label]) => (
           <Link
             key={key}
             href={key === 'personas' ? '/collection' : '/collection?tab=titles'}
-            className={`text-center pb-2.5 -mb-px border-b-2 ${tab === key ? 'border-orange-500 text-white' : 'border-transparent text-neutral-500 hover:text-neutral-300'}`}
+            className={`text-center pb-2.5 -mb-px border-b-2 ${tab === key ? 'border-pink-500 text-white' : 'border-transparent text-neutral-500 hover:text-neutral-300'}`}
           >
             {label}
           </Link>
@@ -84,7 +87,7 @@ export default async function CollectionPage({ searchParams }: { searchParams: P
                   <div className="flex items-center gap-3 shrink-0">
                     <span className="text-[11px] text-neutral-600">{formatDate(at)}</span>
                     <form action={equipTitle.bind(null, equipped ? null : t.id)}>
-                      <button className={`text-xs rounded-full px-3 py-1 ${equipped ? 'bg-orange-500' : 'border border-neutral-600 hover:border-neutral-400'}`}>
+                      <button className={`text-xs rounded-full px-3 py-1 ${equipped ? 'bg-pink-500' : 'border border-neutral-600 hover:border-neutral-400'}`}>
                         {equipped ? '장착 중' : '장착'}
                       </button>
                     </form>
@@ -103,7 +106,7 @@ export default async function CollectionPage({ searchParams }: { searchParams: P
           return (
             <section key={mode}>
               <div className="flex justify-between items-center border-b border-neutral-700 pb-2 mb-4">
-                <span className="text-sm">{MODE_LABELS[mode]}</span>
+                <span className="font-display text-xl">{MODE_LABELS[mode]} 모드</span>
                 <span className="text-xs text-neutral-500">
                   {done ? '수집 완료' : `${MODE_LABELS[mode]} 모드로 합격하면 획득`}
                 </span>

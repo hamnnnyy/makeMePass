@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { INTERVIEWER_ROLES, ROLE_LABELS, type InterviewerRole } from '@/lib/constants/roles';
 import { ELIMINATED_LINE, OBJECTION_LINE, PASS_LINE } from '@/lib/constants/interview';
+import { PageHeader } from '@/components/layout/PageHeader';
+import { DialogueBox } from '@/features/interviewer/components/DialogueBox';
 import { InterviewerPanel } from '@/features/interviewer/components/InterviewerPanel';
 import { PersonaCard } from '@/features/interviewer/components/PersonaCard';
 import { unlockAchievements } from '@/features/gamification/server/unlockAchievements.server';
@@ -41,7 +43,7 @@ export default async function ResultPage({ params }: { params: Promise<{ id: str
   ]);
 
   if (!session) return (
-    <div className="min-h-screen bg-[#141414] text-white flex items-center justify-center">
+    <div className="min-h-screen bg-night text-white flex items-center justify-center">
       <p className="text-neutral-400">세션을 찾을 수 없습니다.</p>
     </div>
   );
@@ -95,15 +97,17 @@ export default async function ResultPage({ params }: { params: Promise<{ id: str
   const elimQ = answered[elimIdx];
 
   return (
-    <div className="min-h-screen bg-[#141414] text-white flex flex-col px-6 md:px-8 py-6 gap-8">
-      {/* Top bar */}
-      <div className="flex items-center justify-between">
-        <span className="text-sm md:text-base font-medium">
-          {org?.code} · {INTERVIEW_TYPE_INFO[session.interview_type ?? 'general'].label} · {formatDate(session.started_at)}
-        </span>
-        <h1 className="text-sm md:text-base font-medium">{abandoned ? '면접 중단' : TITLE[result]}</h1>
-        <Link href="/" className="text-sm md:text-base hover:text-neutral-300 transition-colors">나가기 →</Link>
-      </div>
+    <div className="min-h-screen bg-night text-white flex flex-col">
+      <PageHeader
+        title={abandoned ? '면접 중단' : TITLE[result]}
+        back={{ href: '/', label: '홈' }}
+        right={
+          <span className="text-xs md:text-sm text-neutral-400 text-right">
+            {org?.code} · {INTERVIEW_TYPE_INFO[session.interview_type ?? 'general'].label} · {formatDate(session.started_at)}
+          </span>
+        }
+      />
+    <div className="flex flex-col px-6 md:px-8 py-8 gap-8">
 
       {/* 면접관 */}
       <div className="grid grid-cols-3 gap-4 items-center max-w-4xl mx-auto w-full">
@@ -123,8 +127,8 @@ export default async function ResultPage({ params }: { params: Promise<{ id: str
       </div>
 
       {line && (
-        <div className="max-w-5xl mx-auto w-full rounded-lg bg-gradient-to-b from-neutral-800/80 to-neutral-900 border border-neutral-800 px-5 py-2.5 text-center text-sm">
-          [{ROLE_LABELS[line[0]]}] {line[1]}
+        <div className="max-w-4xl mx-auto w-full">
+          <DialogueBox role={line[0]} name={names[line[0]]}>{line[1]}</DialogueBox>
         </div>
       )}
 
@@ -176,7 +180,7 @@ export default async function ResultPage({ params }: { params: Promise<{ id: str
               </>
             )}
             {gamification.newStreak > 1 && (
-              <p className="text-xs text-orange-400 mt-1">
+              <p className="text-xs text-pink-400 mt-1">
                 {gamification.newStreak}일 연속 연습{gamification.isNewRecord && ' · 최고 기록'}
               </p>
             )}
@@ -184,12 +188,29 @@ export default async function ResultPage({ params }: { params: Promise<{ id: str
         )}
       </div>
 
+      <div className="flex justify-center gap-3">
+        {!abandoned && (
+          <Link
+            href={`/result/${id}/review`}
+            className="px-7 py-3 rounded-full bg-pink-500 hover:bg-pink-400 transition-colors font-medium shadow-[0_8px_30px_-8px_#ff4f8b]"
+          >
+            복기하기
+          </Link>
+        )}
+        <Link
+          href="/setup"
+          className="px-7 py-3 rounded-full border border-neutral-600 hover:border-neutral-400 text-neutral-200 transition-colors font-medium"
+        >
+          {result === 'fail_eliminate' ? '재도전' : '한 번 더'}
+        </Link>
+      </div>
+
       {/* 경험치 */}
       {gained > 0 && (
         <div className="max-w-md mx-auto w-full rounded-2xl bg-neutral-900 border border-neutral-800 px-5 py-4 flex flex-col gap-3">
           <div className="flex justify-between items-center">
             <span className="text-sm font-semibold text-amber-300">+{gained} XP</span>
-            {leveledUp && <span className="text-xs font-bold text-orange-400 animate-pulse">LEVEL UP! Lv.{player.level} {rankName(player.level)}</span>}
+            {leveledUp && <span className="text-xs font-bold text-pink-400 animate-pulse">LEVEL UP! Lv.{player.level} {rankName(player.level)}</span>}
           </div>
           <LevelBar level={player.level} into={player.into} need={player.need} />
           {newColors.length > 0 && (
@@ -207,7 +228,7 @@ export default async function ResultPage({ params }: { params: Promise<{ id: str
             <p className="text-xs text-neutral-500">
               {gamification.collected.some((c) => c.isNew) ? '면접관 도감에 추가되었습니다' : '이미 수집한 면접관입니다'}
             </p>
-            <Link href="/collection" className="text-xs text-orange-400 hover:text-orange-300">도감 보기 →</Link>
+            <Link href="/collection" className="text-xs text-pink-400 hover:text-pink-300">도감 보기 →</Link>
           </div>
           <div className="grid grid-cols-3 gap-3">
             {gamification.collected.map((c) => (
@@ -217,22 +238,7 @@ export default async function ResultPage({ params }: { params: Promise<{ id: str
         </div>
       )}
 
-      <div className="mt-auto flex justify-center gap-4 pb-4">
-        {!abandoned && (
-          <Link
-            href={`/result/${id}/review`}
-            className="px-6 py-2.5 rounded-lg bg-orange-500 hover:bg-orange-400 transition-colors text-sm font-medium"
-          >
-            복기하기
-          </Link>
-        )}
-        <Link
-          href="/setup"
-          className="px-6 py-2.5 rounded-lg border border-orange-500 text-orange-500 hover:bg-orange-500/10 transition-colors text-sm font-medium"
-        >
-          {result === 'fail_eliminate' ? '재도전' : '한 번 더'}
-        </Link>
-      </div>
+    </div>
     </div>
   );
 }

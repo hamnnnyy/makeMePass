@@ -15,7 +15,7 @@ export function ProfileForm({ name, mode }: { name: string; mode: InterviewMode 
           defaultValue={name}
           maxLength={20}
           required
-          className="rounded-lg bg-neutral-800 border border-neutral-700 focus:border-orange-500 outline-none px-3 py-2 text-sm"
+          className="rounded-lg bg-neutral-800 border border-neutral-700 focus:border-pink-500 outline-none px-3 py-2 text-sm"
         />
       </label>
       <fieldset className="flex flex-col gap-1.5">
@@ -24,7 +24,7 @@ export function ProfileForm({ name, mode }: { name: string; mode: InterviewMode 
           {INTERVIEW_MODES.map((m) => (
             <label key={m} className="cursor-pointer">
               <input type="radio" name="preferred_mode" value={m} defaultChecked={mode === m} className="peer sr-only" />
-              <span className="block text-center text-xs rounded-lg py-2 bg-neutral-800 peer-checked:bg-orange-500 peer-focus-visible:ring-2 ring-white">
+              <span className="block text-center text-xs rounded-lg py-2 bg-neutral-800 peer-checked:bg-pink-500 peer-focus-visible:ring-2 ring-white">
                 {MODE_LABELS[m]}
               </span>
             </label>
@@ -35,7 +35,7 @@ export function ProfileForm({ name, mode }: { name: string; mode: InterviewMode 
         {state && (
           <p role="status" className={`text-xs ${state.error ? 'text-red-400' : 'text-emerald-400'}`}>{state.error ?? state.ok}</p>
         )}
-        <button disabled={pending} className="ml-auto px-5 py-2 rounded-full bg-orange-500 hover:bg-orange-400 text-sm font-medium disabled:opacity-50">
+        <button disabled={pending} className="ml-auto px-5 py-2 rounded-full bg-pink-500 hover:bg-pink-400 text-sm font-medium disabled:opacity-50">
           {pending ? '저장 중...' : '저장'}
         </button>
       </div>

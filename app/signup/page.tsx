@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { validatePassword } from '@/lib/utils/password';
+import { Logo } from '@/components/layout/Logo';
 
 export default function SignUpPage() {
   const router = useRouter();
@@ -43,10 +44,11 @@ export default function SignUpPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#141414] text-white flex items-center justify-center px-4">
+    <div className="min-h-screen bg-night text-white flex items-center justify-center px-4">
       <div className="w-full max-w-sm flex flex-col gap-8">
         <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-bold">회원가입</h1>
+          <div className="mb-6"><Logo size={32} /></div>
+          <h1 className="text-3xl">회원가입</h1>
           <p className="text-sm text-neutral-400">합사카 계정을 만들어보세요.</p>
         </div>
 
@@ -59,7 +61,7 @@ export default function SignUpPage() {
               onChange={(e) => setName(e.target.value)}
               placeholder="김춘자"
               required
-              className="bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-orange-500 transition-colors placeholder:text-neutral-600"
+              className="bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-pink-500 transition-colors placeholder:text-neutral-600"
             />
             <label className="text-xs text-neutral-400">이메일</label>
             <input
@@ -68,7 +70,7 @@ export default function SignUpPage() {
               onChange={(e) => setEmail(e.target.value)}
               placeholder="example@email.com"
               required
-              className="bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-orange-500 transition-colors placeholder:text-neutral-600"
+              className="bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-pink-500 transition-colors placeholder:text-neutral-600"
             />
           </div>
 
@@ -80,7 +82,7 @@ export default function SignUpPage() {
               onChange={(e) => setPassword(e.target.value)}
               placeholder="8자 이상, 특수문자 포함"
               required
-              className="bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-orange-500 transition-colors placeholder:text-neutral-600"
+              className="bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-pink-500 transition-colors placeholder:text-neutral-600"
             />
           </div>
 
@@ -92,14 +94,14 @@ export default function SignUpPage() {
               onChange={(e) => setCheckPassword(e.target.value)}
               placeholder="비밀번호 재입력"
               required
-              className="bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-orange-500 transition-colors placeholder:text-neutral-600"
+              className="bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-pink-500 transition-colors placeholder:text-neutral-600"
             />
           </div>
 
           <label className="flex items-start gap-2 text-xs text-neutral-400">
-            <input type="checkbox" required className="mt-0.5 accent-orange-500" />
+            <input type="checkbox" required className="mt-0.5 accent-pink-500" />
             <span>
-              <Link href="/privacy" target="_blank" className="text-orange-400 underline underline-offset-2">개인정보처리방침</Link>
+              <Link href="/privacy" target="_blank" className="text-pink-400 underline underline-offset-2">개인정보처리방침</Link>
               에 동의합니다. 답변 음성·텍스트는 평가를 위해 Google Gemini로 전송됩니다.
             </span>
           </label>
@@ -109,7 +111,7 @@ export default function SignUpPage() {
           <button
             type="submit"
             disabled={loading}
-            className="mt-2 bg-orange-500 hover:bg-orange-400 disabled:bg-neutral-700 disabled:text-neutral-500 text-white font-medium py-2.5 rounded-lg text-sm transition-colors"
+            className="mt-2 bg-pink-500 hover:bg-pink-400 disabled:bg-neutral-700 disabled:text-neutral-500 text-white font-medium py-2.5 rounded-lg text-sm transition-colors"
           >
             {loading ? '가입 중...' : '회원가입'}
           </button>
@@ -117,7 +119,7 @@ export default function SignUpPage() {
 
         <p className="text-center text-sm text-neutral-500">
           이미 회원이신가요?{' '}
-          <Link href="/login" className="text-orange-400 hover:text-orange-300 transition-colors">
+          <Link href="/login" className="text-pink-400 hover:text-pink-300 transition-colors">
             로그인
           </Link>
         </p>

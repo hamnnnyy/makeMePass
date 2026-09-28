@@ -7,13 +7,14 @@ import Image from 'next/image';
 import { Paperclip } from 'lucide-react';
 import type { InterviewMode } from '@/lib/constants/modes';
 import { MODE_LABELS } from '@/lib/constants/modes';
+import { PageHeader } from '@/components/layout/PageHeader';
 import createSession from '@/features/interview/server/createSession.server';
 import { INTERVIEW_TYPES, INTERVIEW_TYPE_INFO, type InterviewType } from '@/lib/constants/interviewTypes';
 
 // code 는 organizations.code 와 같아야 한다. 로고: public/orgs/{code}.png
 const ORG_GROUPS: { label: string; orgs: { code: string; name: string }[] }[] = [
   {
-    label: 'A. 금융',
+    label: '금융',
     orgs: [
       { code: 'KAMCO', name: '한국자산관리공사' },
       { code: 'BOK', name: '한국은행' },
@@ -21,9 +22,9 @@ const ORG_GROUPS: { label: string; orgs: { code: string; name: string }[] }[] = 
       { code: 'HUG', name: '주택도시보증공사' },
     ],
   },
-  { label: 'B. 에너지', orgs: [{ code: 'KEPCO', name: '한국전력공사' }] },
-  { label: 'C. 주거, 인프라', orgs: [{ code: 'LH', name: '한국토지주택공사' }] },
-  { label: 'D. 보건', orgs: [{ code: 'HIRA', name: '건강보험심사평가원' }] },
+  { label: '에너지', orgs: [{ code: 'KEPCO', name: '한국전력공사' }] },
+  { label: '주거, 인프라', orgs: [{ code: 'LH', name: '한국토지주택공사' }] },
+  { label: '보건', orgs: [{ code: 'HIRA', name: '건강보험심사평가원' }] },
 ];
 
 const MODES: InterviewMode[] = ['realistic', 'casual', 'boss', 'cute'];
@@ -38,13 +39,13 @@ function StepIndicator({ current }: { current: number }) {
         <div key={n} className="flex items-center">
           <div
             className={`w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold transition-colors ${
-              n <= current ? 'bg-orange-500 text-white' : 'bg-neutral-700 text-neutral-400'
+              n <= current ? 'bg-pink-500 text-white' : 'bg-neutral-700 text-neutral-400'
             }`}
           >
             {n}
           </div>
           {i < 2 && (
-            <div className={`w-12 h-px ${n < current ? 'bg-orange-500' : 'bg-neutral-700'}`} />
+            <div className={`w-12 h-px ${n < current ? 'bg-pink-500' : 'bg-neutral-700'}`} />
           )}
         </div>
       ))}
@@ -99,23 +100,16 @@ export default function SetupPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#141414] text-white flex flex-col">
-      {/* Top bar */}
-      <div className="flex items-center justify-between px-8 py-6">
-        <button onClick={handleBack} className="text-sm text-neutral-400 hover:text-white transition-colors">
-          ← 뒤로
-        </button>
-        <span className="text-sm font-medium text-white">면접 시작</span>
-        <div className="w-12" />
-      </div>
+    <div className="min-h-screen bg-night text-white flex flex-col">
+      <PageHeader title="면접 준비" back={{ onClick: handleBack, label: step === 1 ? '나가기' : '이전' }} />
 
       {/* Content */}
-      <div className="flex-1 px-8 max-w-4xl mx-auto w-full">
+      <div className="flex-1 px-6 md:px-8 pt-8 pb-32 max-w-4xl mx-auto w-full">
         <StepIndicator current={step} />
 
         {step === 1 && (
           <div>
-            <h1 className="text-2xl font-bold mb-8">01. 기관 선택</h1>
+            <h2 className="text-3xl mb-8">어느 기관에 지원하나요?</h2>
             <div className="space-y-8">
               {ORG_GROUPS.map((group) => (
                 <div key={group.label}>
@@ -123,14 +117,14 @@ export default function SetupPage() {
                     <span className="text-sm text-neutral-300">{group.label}</span>
                     <span className="text-xs text-neutral-500">{group.orgs.length} 기관</span>
                   </div>
-                  <div className="flex gap-4 flex-wrap justify-center">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                     {group.orgs.map((org) => (
                       <button
                         key={org.code}
                         onClick={() => setOrgId(org.code)}
                         aria-pressed={orgId === org.code}
-                        className={`w-36 h-36 flex flex-col items-center justify-center gap-3 rounded-2xl bg-neutral-800/80 transition-all ${
-                          orgId === org.code ? 'ring-2 ring-orange-500' : 'hover:bg-neutral-700/80'
+                        className={`aspect-[4/3] flex flex-col items-center justify-center gap-3 rounded-2xl bg-neutral-800/80 transition-all ${
+                          orgId === org.code ? 'ring-2 ring-pink-500 bg-pink-500/10' : 'hover:bg-neutral-700/80'
                         }`}
                       >
                         <Image src={`/orgs/${org.code}.png`} alt="" width={96} height={72} className="h-[72px] w-24 object-contain" />
@@ -146,19 +140,19 @@ export default function SetupPage() {
 
         {step === 2 && (
           <div>
-            <h1 className="text-2xl font-bold mb-8">02. 모드 선택</h1>
-            <div className="flex gap-4 flex-wrap justify-center">
+            <h2 className="text-3xl mb-8">어떤 면접관을 만날까요?</h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {MODES.map((id) => (
                 <button
                   key={id}
                   onClick={() => setMode(id)}
                   aria-pressed={mode === id}
-                  className={`w-24 h-28 flex flex-col items-center justify-center gap-3 rounded-2xl bg-neutral-800/80 transition-all ${
-                    mode === id ? 'ring-2 ring-orange-500' : 'hover:bg-neutral-700/80'
+                  className={`aspect-square flex flex-col items-center justify-center gap-4 rounded-2xl bg-neutral-800/80 transition-all ${
+                    mode === id ? 'ring-2 ring-pink-500 bg-pink-500/10' : 'hover:bg-neutral-700/80'
                   }`}
                 >
-                  <Image src={`/modes/${id}.png`} alt="" width={40} height={40} />
-                  <span className="text-xs text-neutral-300">{MODE_LABELS[id]}</span>
+                  <Image src={`/modes/${id}.png`} alt="" width={56} height={56} />
+                  <span className="font-display text-lg">{MODE_LABELS[id]}</span>
                 </button>
               ))}
             </div>
@@ -167,12 +161,12 @@ export default function SetupPage() {
 
         {step === 3 && (
           <div>
-            <h1 className="text-2xl font-bold mb-8">03. 옵션 선택</h1>
+            <h2 className="text-3xl mb-8">면접 방식을 정해 주세요</h2>
             <div className="space-y-8">
               {/* 면접 유형 */}
               <div>
                 <div className="flex justify-between items-center border-b border-neutral-700 pb-2 mb-6">
-                  <span className="text-sm text-neutral-300">A. 면접 유형</span>
+                  <span className="text-sm text-neutral-300">면접 유형</span>
                   <span className="text-xs text-neutral-500">{INTERVIEW_TYPE_INFO[interviewType].label}</span>
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -182,7 +176,7 @@ export default function SetupPage() {
                       onClick={() => setInterviewType(t)}
                       aria-pressed={interviewType === t}
                       className={`rounded-2xl bg-neutral-800/80 px-4 py-3 text-left transition-all ${
-                        interviewType === t ? 'ring-2 ring-orange-500' : 'hover:bg-neutral-700/80'
+                        interviewType === t ? 'ring-2 ring-pink-500 bg-pink-500/10' : 'hover:bg-neutral-700/80'
                       }`}
                     >
                       <p className="text-sm font-semibold">{INTERVIEW_TYPE_INFO[t].label}</p>
@@ -195,7 +189,7 @@ export default function SetupPage() {
               {/* 질문 수 — PT는 발표 1개 + 꼬리질문으로 고정 */}
               {interviewType !== 'pt' && <div>
                 <div className="flex justify-between items-center border-b border-neutral-700 pb-2 mb-6">
-                  <span className="text-sm text-neutral-300">B. 질문 수</span>
+                  <span className="text-sm text-neutral-300">질문 수</span>
                   <span className="text-xs text-neutral-500">{questionCount}개</span>
                 </div>
                 <div className="flex items-center justify-center gap-6">
@@ -222,7 +216,7 @@ export default function SetupPage() {
               {/* 자기소개서 — PT는 주제 발표라 사용하지 않음 */}
               {interviewType !== 'pt' && <div>
                 <div className="flex justify-between items-center border-b border-neutral-700 pb-2 mb-6">
-                  <span className="text-sm text-neutral-300">C. 자기소개서 <span className="text-neutral-500">(선택 · PDF 5MB 이하 · 첨부 시 자소서 기반 질문 출제)</span></span>
+                  <span className="text-sm text-neutral-300">자기소개서 <span className="text-neutral-500">(선택 · PDF 5MB 이하 · 첨부 시 자소서 기반 질문 출제)</span></span>
                   {coverLetterFile && (
                     <span className="text-xs text-neutral-500 truncate max-w-[200px]">
                       {coverLetterFile.name}
@@ -251,16 +245,22 @@ export default function SetupPage() {
         )}
       </div>
 
-      {/* Bottom bar */}
-      <div className="px-8 py-6 flex justify-end items-center gap-4">
-        {error && <p className="text-xs text-red-400">{error}</p>}
-        <button
-          onClick={handleNext}
-          disabled={!canNext || starting}
-          className="px-6 py-3 bg-orange-500 hover:bg-orange-400 disabled:bg-neutral-700 disabled:text-neutral-500 text-white text-sm font-medium rounded-full transition-colors"
-        >
-          {step < 3 ? '다음 →' : starting ? (interviewType === 'pt' ? 'PT 주제 준비 중...' : coverLetterFile ? '자소서 분석 중...' : '준비 중...') : '면접 시작 →'}
-        </button>
+      {/* 하단 고정 바: 지금까지 고른 것 + 다음 */}
+      <div className="fixed inset-x-0 bottom-0 z-20 bg-night/90 backdrop-blur border-t border-neutral-800">
+        <div className="max-w-4xl mx-auto px-6 md:px-8 py-4 flex items-center gap-4">
+          <p className="text-sm text-neutral-400 truncate flex-1">
+            {[ORG_GROUPS.flatMap((g) => g.orgs).find((o) => o.code === orgId)?.name, mode && `${MODE_LABELS[mode]} 모드`, step === 3 && INTERVIEW_TYPE_INFO[interviewType].label]
+              .filter(Boolean).join(' · ') || '기관을 골라 주세요'}
+          </p>
+          {error && <p className="text-xs text-red-400">{error}</p>}
+          <button
+            onClick={handleNext}
+            disabled={!canNext || starting}
+            className="shrink-0 px-7 py-3 bg-pink-500 hover:bg-pink-400 disabled:bg-neutral-700 disabled:text-neutral-500 disabled:shadow-none text-white font-medium rounded-full transition-colors shadow-[0_8px_30px_-8px_#ff4f8b]"
+          >
+            {step < 3 ? '다음' : starting ? (interviewType === 'pt' ? 'PT 주제 준비 중...' : coverLetterFile ? '자소서 분석 중...' : '준비 중...') : '면접 시작'}
+          </button>
+        </div>
       </div>
     </div>
   );

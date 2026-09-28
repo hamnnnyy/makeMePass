@@ -1,4 +1,5 @@
 import Link from "next/link"
+import { Logo } from "@/components/layout/Logo"
 import { createClient } from "@/lib/supabase/server"
 import { createClient as createServiceClient } from "@/lib/supabase/service-role"
 import { RARITY_COLOR } from "@/features/gamification/constants"
@@ -28,7 +29,7 @@ const Navbar = async () => {
 
     return (
         <header className="absolute inset-x-0 top-0 z-10 w-full px-6 md:px-16 py-6 flex justify-between items-center h-20">
-            <Link href="/" className="font-bold tracking-tight">합사카</Link>
+            <Logo />
             <nav className="flex items-center gap-2 text-sm text-white/80">
                 <Link href="/collection" className="hover:text-white">도감</Link>
                 <span className="text-white/30">|</span>

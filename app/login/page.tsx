@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { Logo } from '@/components/layout/Logo';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -33,10 +34,11 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#141414] text-white flex items-center justify-center px-4">
+    <div className="min-h-screen bg-night text-white flex items-center justify-center px-4">
       <div className="w-full max-w-sm flex flex-col gap-8">
         <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-bold">로그인</h1>
+          <div className="mb-6"><Logo size={32} /></div>
+          <h1 className="text-3xl">로그인</h1>
           <p className="text-sm text-neutral-400">합사카에 오신 것을 환영합니다.</p>
         </div>
 
@@ -49,7 +51,7 @@ export default function LoginPage() {
               onChange={(e) => setEmail(e.target.value)}
               placeholder="example@email.com"
               required
-              className="bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-orange-500 transition-colors placeholder:text-neutral-600"
+              className="bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-pink-500 transition-colors placeholder:text-neutral-600"
             />
           </div>
 
@@ -61,7 +63,7 @@ export default function LoginPage() {
               onChange={(e) => setPassword(e.target.value)}
               placeholder="비밀번호 입력"
               required
-              className="bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-orange-500 transition-colors placeholder:text-neutral-600"
+              className="bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-pink-500 transition-colors placeholder:text-neutral-600"
             />
           </div>
 
@@ -70,7 +72,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="mt-2 bg-orange-500 hover:bg-orange-400 disabled:bg-neutral-700 disabled:text-neutral-500 text-white font-medium py-2.5 rounded-lg text-sm transition-colors"
+            className="mt-2 bg-pink-500 hover:bg-pink-400 disabled:bg-neutral-700 disabled:text-neutral-500 text-white font-medium py-2.5 rounded-lg text-sm transition-colors"
           >
             {loading ? '로그인 중...' : '로그인'}
           </button>
@@ -78,7 +80,7 @@ export default function LoginPage() {
 
         <p className="text-center text-sm text-neutral-500">
           계정이 없으신가요?{' '}
-          <Link href="/signup" className="text-orange-400 hover:text-orange-300 transition-colors">
+          <Link href="/signup" className="text-pink-400 hover:text-pink-300 transition-colors">
             회원가입
           </Link>
         </p>

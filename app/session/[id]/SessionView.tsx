@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { InterviewerPanel } from '@/features/interviewer/components/InterviewerPanel';
 import { moodOf } from '@/features/interviewer/components/Portrait';
 import { INTERVIEWER_ROLES } from '@/lib/constants/roles';
+import { DialogueBox } from '@/features/interviewer/components/DialogueBox';
 import type { InterviewerRole } from '@/lib/constants/roles';
 import {
   ANSWER_LIMIT_SEC, CLOSING_QUESTION, CLOSING_LINE, ELIMINATED_LINE, FOLLOW_UP_OFFSET, INTRO_QUESTION,
@@ -239,11 +240,11 @@ export function SessionView({
   }
 
   return (
-    <div className="min-h-screen bg-[#141414] text-white flex flex-col px-6 py-4 gap-4">
+    <div className="min-h-screen bg-night text-white flex flex-col px-6 py-4 gap-4 max-w-6xl mx-auto w-full">
       {/* Top bar */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-orange-500 text-lg">◆</span>
+          <span className="text-pink-500 text-lg">◆</span>
           <span className="text-sm font-medium">{Math.min(idx + 1, questions.length)}/{questions.length}</span>
         </div>
         <span className="text-sm font-medium text-neutral-300">
@@ -267,28 +268,26 @@ export function SessionView({
         ))}
       </div>
 
-      {/* Question display */}
-      <div className="bg-neutral-800/60 rounded-xl px-5 py-3 text-sm text-neutral-200 text-center leading-relaxed min-h-[56px] flex items-center justify-center">
-        {phase === 'error' ? (
-          <span className="text-red-400">{error}</span>
-        ) : phase === 'lobby' ? (
-          <span className="text-neutral-400">
-            카메라를 정면에 두고, 면접관(화면)을 바라보며 답변하세요. 질문이 끝나면 바로 녹음이 시작됩니다.
-          </span>
-        ) : currentQuestion && answerKind(currentQuestion) === 'pt' ? (
-          <div className="text-left w-full whitespace-pre-line">
-            <p className="text-xs text-orange-400 mb-1">PT 주제 · 준비 {PT_PREP_SEC / 60}분 · 발표 최대 3분</p>
-            {currentQuestion.question_text.slice(PT_TOPIC_PREFIX.length)}
-          </div>
-        ) : currentQuestion ? (
-          <span>
-            <span className="text-neutral-500 mr-2">
-              [{currentQuestion.asked_by_role.toUpperCase()}{currentQuestion.is_follow_up ? ' · 꼬리질문' : ''}]
-            </span>
-            {currentQuestion.question_text}
-          </span>
-        ) : null}
-      </div>
+      {/* 비주얼노벨 대사창: 질문한(말하는) 면접관 이름표 + 대사 */}
+      {(() => {
+        const who = currentQuestion && phase !== 'lobby' && phase !== 'error' ? (speaker ?? currentQuestion.asked_by_role) : null;
+        return (
+          <DialogueBox role={who} name={who ? names[who] : undefined} tag={currentQuestion?.is_follow_up ? '꼬리질문' : undefined}>
+            {phase === 'error' ? (
+              <span className="text-red-400">{error}</span>
+            ) : phase === 'lobby' ? (
+              <span className="text-neutral-400 text-sm">
+                카메라를 정면에 두고, 면접관(화면)을 바라보며 답변하세요. 질문이 끝나면 바로 녹음이 시작됩니다.
+              </span>
+            ) : currentQuestion && answerKind(currentQuestion) === 'pt' ? (
+              <div className="whitespace-pre-line">
+                <p className="text-xs text-pink-400 mb-1">PT 주제 · 준비 {PT_PREP_SEC / 60}분 · 발표 최대 3분</p>
+                {currentQuestion.question_text.slice(PT_TOPIC_PREFIX.length)}
+              </div>
+            ) : currentQuestion?.question_text}
+          </DialogueBox>
+        );
+      })()}
 
       {/* Self-cam */}
       <div className="flex-1 flex flex-col items-center gap-4">
@@ -314,7 +313,7 @@ export function SessionView({
             readOnly={phase === 'answering'}
             rows={4}
             placeholder="발표 메모 (평가에 쓰이지 않습니다)"
-            className="w-full max-w-xl rounded-xl bg-neutral-900 border border-neutral-700 focus:border-orange-500 outline-none px-4 py-3 text-sm leading-relaxed resize-none"
+            className="w-full max-w-xl rounded-xl bg-neutral-900 border border-neutral-700 focus:border-pink-500 outline-none px-4 py-3 text-sm leading-relaxed resize-none"
           />
         )}
 
@@ -327,7 +326,7 @@ export function SessionView({
               maxLength={2000}
               rows={5}
               placeholder="답변을 입력하세요. 텍스트 답변은 내용과 표정·자세를 평가합니다 (시선·말하기·시간 제외)."
-              className="w-full rounded-xl bg-neutral-900 border border-neutral-700 focus:border-orange-500 outline-none px-4 py-3 text-sm leading-relaxed resize-none"
+              className="w-full rounded-xl bg-neutral-900 border border-neutral-700 focus:border-pink-500 outline-none px-4 py-3 text-sm leading-relaxed resize-none"
             />
             <span className="text-[11px] text-neutral-500 text-right">{answerText.length} / 2000</span>
           </div>
@@ -339,14 +338,14 @@ export function SessionView({
             <button
               onClick={start}
               disabled={!faceReady}
-              className="px-6 h-12 rounded-full bg-orange-500 hover:bg-orange-400 text-sm font-medium disabled:opacity-40"
+              className="px-6 h-12 rounded-full bg-pink-500 hover:bg-pink-400 text-sm font-medium disabled:opacity-40"
             >
               {!faceReady ? '카메라 준비 중...' : startIdx === 0 ? '면접 입장' : '이어서 진행'}
             </button>
           ) : phase === 'preparing' ? (
             <button
               onClick={() => beginAnswer(idx)}
-              className="px-6 h-12 rounded-full bg-orange-500 hover:bg-orange-400 text-sm font-medium"
+              className="px-6 h-12 rounded-full bg-pink-500 hover:bg-pink-400 text-sm font-medium"
             >
               발표 시작
             </button>
@@ -369,7 +368,7 @@ export function SessionView({
               <button
                 onClick={finishAnswer}
                 disabled={phase !== 'answering' || (textMode && !answerText.trim())}
-                className="px-6 h-12 rounded-full flex items-center gap-2 bg-orange-500 text-sm font-medium transition-colors disabled:bg-neutral-700 disabled:text-neutral-400"
+                className="px-6 h-12 rounded-full flex items-center gap-2 bg-pink-500 text-sm font-medium transition-colors disabled:bg-neutral-700 disabled:text-neutral-400"
               >
                 {!textMode && <MicIcon className="text-white" />} 답변 완료
               </button>

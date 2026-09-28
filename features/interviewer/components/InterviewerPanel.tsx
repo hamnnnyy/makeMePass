@@ -107,7 +107,7 @@ export function InterviewerPanel({ mode, role, mood, name, favor, passLine, delt
       )}
       <div className="absolute inset-x-0 bottom-0 px-3 py-2.5 flex flex-col gap-1.5 bg-gradient-to-t from-black/70 to-transparent">
         <div className="flex justify-between items-center">
-          <span className={`font-bold ${large ? 'text-sm' : 'text-xs'}`}>
+          <span className={`font-display ${large ? 'text-lg' : 'text-base'}`}>
             {ROLE_LABELS[role]}
             <span className="font-normal text-neutral-300"> | {name}</span>
           </span>

@@ -4,7 +4,7 @@ import { useActionState } from 'react';
 import Link from 'next/link';
 import { changePassword, deleteAccount, signOut, type ActionState } from '@/features/auth/server/account.server';
 
-const input = 'rounded-lg bg-neutral-800 border border-neutral-700 focus:border-orange-500 outline-none px-3 py-2 text-sm';
+const input = 'rounded-lg bg-neutral-800 border border-neutral-700 focus:border-pink-500 outline-none px-3 py-2 text-sm';
 
 function Message({ state }: { state: ActionState }) {
   if (!state) return null;

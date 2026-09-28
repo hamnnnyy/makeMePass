@@ -6,6 +6,7 @@ import { LevelBar } from '@/features/gamification/components/LevelBar';
 import { OrbColorPicker } from './OrbColorPicker';
 import { AccountSection } from './AccountSection';
 import { ProfileForm } from './ProfileForm';
+import { PageHeader } from '@/components/layout/PageHeader';
 
 // 프로필·꾸미기·계정: 이름·기본 모드·구슬 색·비밀번호·로그아웃·탈퇴 (칭호는 도감에서 장착)
 export default async function SettingsPage() {
@@ -19,14 +20,10 @@ export default async function SettingsPage() {
   ]);
 
   return (
-    <div className="min-h-screen bg-[#141414] text-white px-6 md:px-8 py-6 flex flex-col gap-8">
-      <div className="flex items-center justify-between">
-        <Link href="/" className="text-sm text-neutral-400 hover:text-white transition-colors">← 홈</Link>
-        <h1 className="text-sm font-medium">프로필 · 설정</h1>
-        <div className="w-12" />
-      </div>
+    <div className="min-h-screen bg-night text-white flex flex-col">
+      <PageHeader title="프로필 · 설정" back={{ href: '/', label: '홈' }} />
 
-      <div className="max-w-xl mx-auto w-full flex flex-col gap-6">
+      <div className="max-w-xl mx-auto w-full flex flex-col gap-6 px-6 py-8">
         <section className="rounded-2xl bg-neutral-900 border border-neutral-800 p-5">
           <LevelBar level={stats.level} into={stats.into} need={stats.need} />
           <p className="text-[11px] text-neutral-500 mt-2">답변 +10 · 완주 +30 · 합격 +100 XP. 레벨이 오르면 새 구슬 색이 해금됩니다.</p>

@@ -20,7 +20,7 @@ export function PersonaCard({ mode, role, name, position, collected, isNew }: Pr
       style={collected ? { boxShadow: `0 0 0 1px ${ROLE_COLORS[role]}55` } : undefined}
     >
       {isNew && (
-        <span className="absolute top-2 left-2 z-10 text-[10px] font-bold bg-orange-500 rounded-full px-2 py-0.5">NEW</span>
+        <span className="absolute top-2 left-2 z-10 text-[10px] font-bold bg-pink-500 rounded-full px-2 py-0.5">NEW</span>
       )}
       {/* 일러스트가 있으면 캐릭터 (미수집은 실루엣), 없으면 구슬 */}
       <div className="relative flex-1 flex items-center justify-center">

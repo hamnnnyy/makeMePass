@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import { PageHeader } from '@/components/layout/PageHeader';
 
 export const metadata = { title: '개인정보처리방침 | 합사카' };
 
@@ -48,13 +48,10 @@ const SECTIONS: { title: string; body: React.ReactNode }[] = [
 
 export default function PrivacyPage() {
   return (
-    <div className="min-h-screen bg-[#141414] text-white px-5 py-6">
-      <div className="max-w-xl mx-auto flex flex-col gap-6">
-        <Link href="/" className="text-sm text-neutral-400 hover:text-white transition-colors">← 홈</Link>
-        <div className="flex flex-col gap-1">
-          <h1 className="text-xl font-bold">개인정보처리방침</h1>
-          <p className="text-xs text-neutral-500">시행일 {EFFECTIVE}</p>
-        </div>
+    <div className="min-h-screen bg-night text-white">
+      <PageHeader title="개인정보처리방침" back={{ href: '/', label: '홈' }} />
+      <div className="max-w-xl mx-auto flex flex-col gap-6 px-5 py-8">
+        <p className="text-xs text-neutral-500">시행일 {EFFECTIVE}</p>
         {SECTIONS.map((s) => (
           <section key={s.title} className="flex flex-col gap-2">
             <h2 className="text-sm font-bold">{s.title}</h2>
