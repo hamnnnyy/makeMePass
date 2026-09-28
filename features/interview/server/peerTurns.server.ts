@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server';
 import { INTERVIEW_TYPE_INFO } from '@/lib/constants/interviewTypes';
 import { PEERS, type PeerTurn } from '@/lib/constants/peers';
 import { orgBrief } from '../logic/orgBrief';
+import { stripNames } from '../logic/peerText';
 
 // 다대다에서 AI 지원자 답변 수준을 섞는다. 늘 잘하거나 늘 못하면 비교가 안 된다.
 const LEVELS = ['인상적인 답변 (구체적 경험과 수치, 기관 연결)', '평범한 답변 (무난하지만 구체성 부족)', '아쉬운 답변 (추상적이거나 질문 의도와 조금 어긋남)'];
@@ -89,7 +90,7 @@ ${turns.map((t, i) => `${i + 1}. ${t.peer}: ${t.guide}`).join('\n')}`;
     },
   });
   const lines = (JSON.parse(res.text ?? '{}') as { lines?: string[] }).lines ?? [];
-  const filled = plan.map((t, i) => ({ ...t, text: trim(lines[i] ?? '') || '저도 같은 생각입니다.' }));
+  const filled = plan.map((t, i) => ({ ...t, text: trim(stripNames(lines[i] ?? '')) || '저도 같은 생각입니다.' }));
 
   await supabase.from('session_questions').update({ peer_turns: filled }).eq('id', sessionQuestionId);
   return filled;
