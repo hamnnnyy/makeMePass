@@ -15,6 +15,7 @@ const FACES: Record<string, [number, number]> = {
   'cute-hr': [46, 29],
   'cute-tech': [50, 29],
   'cute-exec': [50, 26],
+  'casual-hr': [49, 27],
   // AI 지원자 (다대다·토론·토의)
   'peer-p1': [46, 25],
   'peer-p2': [50, 26],
