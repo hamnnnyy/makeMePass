@@ -112,6 +112,7 @@ export default async function CollectionPage({ searchParams }: { searchParams: P
                 {inMode.map((p, i) => p && (
                   <PersonaCard
                     key={p.id}
+                    mode={mode}
                     role={INTERVIEWER_ROLES[i]}
                     name={p.label_ko}
                     position={p.position_ko}

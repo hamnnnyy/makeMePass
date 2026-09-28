@@ -110,7 +110,9 @@ export default async function ResultPage({ params }: { params: Promise<{ id: str
         {order.map((r) => (
           <InterviewerPanel
             key={r}
+            mode={session.mode}
             role={r}
+            mood={result === 'pass' ? 'happy' : r === focus ? 'upset' : 'neutral'}
             name={names[r]}
             favor={favor[r]}
             passLine={pass}
@@ -209,7 +211,7 @@ export default async function ResultPage({ params }: { params: Promise<{ id: str
           </div>
           <div className="grid grid-cols-3 gap-3">
             {gamification.collected.map((c) => (
-              <PersonaCard key={c.role} role={c.role} name={c.label_ko} collected isNew={c.isNew} />
+              <PersonaCard key={c.role} mode={session.mode} role={c.role} name={c.label_ko} collected isNew={c.isNew} />
             ))}
           </div>
         </div>

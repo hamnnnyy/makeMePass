@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { ROLE_LABELS, ROLE_COLORS, ROLE_ACCENT_HEX, INTERVIEWER_ROLES, type InterviewerRole } from '@/lib/constants/roles';
 import { getPersonaNames } from '@/features/interviewer/personaNames';
+import { Portrait, moodOf } from '@/features/interviewer/components/Portrait';
+import type { InterviewMode } from '@/lib/constants/modes';
 
 type ScoreKey = 'score_content' | 'score_fluency' | 'score_eye_contact' | 'score_expression' | 'score_timing';
 const SCORE_GROUPS: { title: string; items: [ScoreKey, string][] }[] = [
@@ -57,6 +59,18 @@ function Orb({ role, size = 28 }: { role: InterviewerRole; size?: number }) {
   );
 }
 
+// 면접관 얼굴 아바타. 일러스트가 없으면 구슬.
+function Avatar({ mode, role, delta, size }: { mode: InterviewMode; role: InterviewerRole; delta?: number; size: number }) {
+  return (
+    <span
+      className="relative rounded-full overflow-hidden shrink-0 inline-block bg-neutral-800"
+      style={{ width: size, height: size, boxShadow: `0 0 0 1.5px ${ROLE_COLORS[role]}` }}
+    >
+      <Portrait mode={mode} role={role} mood={moodOf(delta)} face sizes={`${size * 3}px`} fallback={<Orb role={role} size={size} />} />
+    </span>
+  );
+}
+
 // 호감도 하트 게이지. 점선 = 합격선
 function HeartGauge({ value, passLine }: { value: number; passLine: number | null }) {
   const color = passLine !== null && value >= passLine ? '#f472b6' : '#be185d';
@@ -85,6 +99,7 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
       .order('sequence'),
   ]);
   const names = session ? await getPersonaNames(supabase, session.mode) : ROLE_LABELS;
+  const mode: InterviewMode = session?.mode ?? 'realistic';
 
   const all = questions ?? [];
   const answered = all.filter((q) => q.answered_at);
@@ -193,7 +208,7 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
                   style={{ background: up ? '#2a0f1f' : '#141a24', borderColor: up ? '#f472b655' : '#60a5fa33' }}
                 >
                   <div className="flex items-center gap-2">
-                    <Orb role={m.role} size={32} />
+                    <Avatar mode={mode} role={m.role} delta={m.delta} size={44} />
                     <div className="flex flex-col min-w-0">
                       <span className="text-[11px] font-bold truncate" style={{ color: ROLE_COLORS[m.role] }}>{names[m.role]}</span>
                       <span className={`text-sm font-bold ${up ? 'text-pink-300' : 'text-sky-300'}`}>{up ? '♥ ' : '💔 '}{m.kind}</span>
@@ -264,7 +279,7 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
                           const d = q[`${r}_delta`] as number;
                           return (
                             <div key={r} className="flex items-end gap-2">
-                              <Orb role={r} size={24} />
+                              <Avatar mode={mode} role={r} delta={d} size={36} />
                               <div className="flex flex-col gap-0.5 min-w-0">
                                 <span className="text-[10px] font-bold" style={{ color: ROLE_COLORS[r] }}>
                                   {names[r]} <span className={d > 0 ? 'text-pink-400' : d < 0 ? 'text-sky-400' : 'text-neutral-500'}>{d > 0 ? `♥ +${d}` : d < 0 ? `💔 ${d}` : '·'}</span>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { InterviewerPanel } from '@/features/interviewer/components/InterviewerPanel';
+import { moodOf } from '@/features/interviewer/components/Portrait';
 import { INTERVIEWER_ROLES } from '@/lib/constants/roles';
 import type { InterviewerRole } from '@/lib/constants/roles';
 import {
@@ -259,7 +260,8 @@ export function SessionView({
       {/* Interviewer panels */}
       <div className="grid grid-cols-3 gap-4">
         {INTERVIEWER_ROLES.map((role) => (
-          <InterviewerPanel key={role} role={role} name={names[role]} favor={favor[role]} passLine={passLine}
+          <InterviewerPanel key={role} mode={session.mode} role={role} mood={moodOf(deltas?.values[role])}
+            name={names[role]} favor={favor[role]} passLine={passLine}
             delta={deltas ? { value: deltas.values[role], key: deltas.key } : undefined} speaking={speaker === role} />
         ))}
       </div>

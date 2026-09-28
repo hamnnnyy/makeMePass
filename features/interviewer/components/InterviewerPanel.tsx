@@ -3,9 +3,13 @@
 import { InterviewerSceneClient } from '@/features/visualizer/scenes/InterviewerSceneClient';
 import { useOrbColors } from '../orbColors';
 import { ROLE_ACCENT_HEX, ROLE_COLORS, ROLE_LABELS, type InterviewerRole } from '@/lib/constants/roles';
+import type { InterviewMode } from '@/lib/constants/modes';
+import { Portrait, type Mood } from './Portrait';
 
 interface Props {
+  mode: InterviewMode;
   role: InterviewerRole;
+  mood?: Mood;         // 일러스트 표정
   name: string;
   favor: number;
   passLine?: number;   // 합격선(%) — 이 선까지 호감도를 채워야 한다
@@ -15,7 +19,7 @@ interface Props {
   danger?: boolean;    // 탈락·반대 표시
 }
 
-export function InterviewerPanel({ role, name, favor, passLine, delta, large, speaking, danger }: Props) {
+export function InterviewerPanel({ mode, role, mood, name, favor, passLine, delta, large, speaking, danger }: Props) {
   const orb = useOrbColors()[role] ?? ROLE_ACCENT_HEX[role];
   const ring = danger ? '#7f1d1d' : speaking ? ROLE_COLORS[role] : undefined;
   return (
@@ -23,8 +27,19 @@ export function InterviewerPanel({ role, name, favor, passLine, delta, large, sp
       className={`relative rounded-2xl overflow-hidden bg-neutral-900 transition-shadow ${large ? 'h-[300px]' : 'h-[220px]'}`}
       style={ring ? { boxShadow: `0 0 0 2px ${ring}` } : undefined}
     >
+      {/* 일러스트가 있으면 캐릭터를 크게, 음성 반응 구슬은 왼쪽 위에 작게. 없으면 구슬만. */}
       <div className="absolute inset-0">
-        <InterviewerSceneClient key={orb} color={orb} controls={false} />
+        <Portrait
+          mode={mode}
+          role={role}
+          mood={mood}
+          sizes="(max-width: 768px) 33vw, 320px"
+          fallback={<InterviewerSceneClient key={orb} color={orb} controls={false} />}
+        >
+          <div className="absolute top-2 left-2 size-11 rounded-full overflow-hidden bg-black/60 ring-1 ring-white/20">
+            <InterviewerSceneClient key={orb} color={orb} controls={false} />
+          </div>
+        </Portrait>
       </div>
       {delta && delta.value !== 0 && (
         <span
