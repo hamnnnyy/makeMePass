@@ -213,7 +213,8 @@ ${isText ? `${nvLine}\n[지원자 답변(텍스트 입력)]\n${answerText}` : `$
         { text: prompt },
       ],
     }],
-    config: { responseMimeType: 'application/json', responseJsonSchema: VERBAL_SCHEMA, temperature: 0.3 },
+    // 정상 응답은 3~5초. flash-lite 가 가끔 응답 없이 멈춰서(실측 15회 중 3회) 기본 20초보다 빨리 다음 모델로 넘긴다
+    config: { responseMimeType: 'application/json', responseJsonSchema: VERBAL_SCHEMA, temperature: 0.3, httpOptions: { timeout: 12_000 } },
   });
   const v = JSON.parse(response.text ?? '{}') as Verbal;
 
