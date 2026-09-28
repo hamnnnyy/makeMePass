@@ -122,6 +122,8 @@ function parseMeta(raw: FormDataEntryValue | null) {
   return { nv, audio, hasMeta: !!m.nonVerbal };
 }
 
+const MAX_AUDIO_BYTES = 8 * 1024 * 1024;
+
 export async function evaluateAnswer(sessionQuestionId: string, formData: FormData): Promise<EvaluateResult> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -130,10 +132,12 @@ export async function evaluateAnswer(sessionQuestionId: string, formData: FormDa
   // RLS가 본인 세션의 질문만 돌려준다
   const { data: sq } = await supabase
     .from('session_questions')
-    .select('question_text, asked_by_role, session_id, sequence, is_follow_up, question_id, peer_turns')
+    .select('question_text, asked_by_role, session_id, sequence, is_follow_up, question_id, peer_turns, answered_at')
     .eq('id', sessionQuestionId)
     .single();
   if (!sq) throw new Error('질문을 찾을 수 없습니다.');
+  // 남용 방지: 한 문항은 한 번만 평가한다 (평가 도중 실패하면 answered_at 이 비어 있어 다시 답할 수 있다)
+  if (sq.answered_at) throw new Error('이미 평가한 답변입니다.');
 
   const [{ data: session }, { data: history }, { data: personas }] = await Promise.all([
     supabase
@@ -150,6 +154,7 @@ export async function evaluateAnswer(sessionQuestionId: string, formData: FormDa
     supabase.from('interviewer_personas').select('mode, role, label_ko, position_ko, tone_description'),
   ]);
   if (!session) throw new Error('세션을 찾을 수 없습니다.');
+  if (session.status !== 'in_progress') throw new Error('이미 끝난 면접입니다.');
 
   const org = session.organizations as unknown as {
     name_ko: string; description: string | null; core_values: unknown; talent_profile: unknown;
@@ -169,6 +174,8 @@ export async function evaluateAnswer(sessionQuestionId: string, formData: FormDa
   const audioFile = formData.get('audio');
   const isText = answerText.length > 0;
   if (!isText && (!(audioFile instanceof File) || audioFile.size === 0)) throw new Error('답변이 없습니다.');
+  // 16kHz 모노 WAV 는 초당 32KB → PT 발표 최대 3분이 약 5.8MB. 그보다 크면 조작된 요청으로 본다.
+  if (audioFile instanceof File && audioFile.size > MAX_AUDIO_BYTES) throw new Error('답변 녹음이 너무 깁니다.');
   const { nv, audio, hasMeta } = parseMeta(formData.get('meta'));
   const nvAll = scoreNonVerbal(nv);  // 얼굴이 안 잡혀도 0점으로 반영 (카메라를 피한 것도 평가 대상)
   const nvLine = hasMeta
