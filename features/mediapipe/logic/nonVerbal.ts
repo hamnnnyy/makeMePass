@@ -7,6 +7,9 @@ export interface NonVerbalSummary {
   presence: number;      // 0-1  얼굴이 화면에 잡힌 비율
   gazeOnRatio: number;   // 0-1  카메라(면접관)를 본 비율
   smileAvg: number;      // 0-1
+  smileRatio: number;    // 0-1  미소가 보인 프레임 비율
+  frownAvg: number;      // 0-1  미간 찌푸림 (browDown)
+  tensionAvg: number;    // 0-1  입 굳음·입꼬리 처짐 (mouthPress·mouthFrown)
   stabilityAvg: number;  // 0-1  1 = 자세 안정
   blinkPerMin: number;
 }
@@ -14,7 +17,7 @@ export interface NonVerbalSummary {
 // 답변 한 번 동안의 프레임을 누적한다.
 export function createTracker() {
   return {
-    frames: 0, detected: 0, gazeOn: 0, smile: 0, stability: 0,
+    frames: 0, detected: 0, gazeOn: 0, smile: 0, smileFrames: 0, frown: 0, tension: 0, stability: 0,
     blinks: 0, eyesClosed: false, prevY: { current: 0 }, startMs: 0, lastMs: 0,
   };
 }
@@ -35,7 +38,11 @@ export function addFrame(t: Tracker, result: FaceLandmarkerResult | null, nowMs:
   const lookDown = (cat('eyeLookDownLeft') + cat('eyeLookDownRight')) / 2;
   if (computeGazeScore(landmarks) >= 0.6 && lookDown < 0.5) t.gazeOn++;
 
-  t.smile += computeSmileScore(blend);
+  const smile = computeSmileScore(blend);
+  t.smile += smile;
+  if (smile >= 0.4) t.smileFrames++;
+  t.frown += (cat('browDownLeft') + cat('browDownRight')) / 2;
+  t.tension += (cat('mouthPressLeft') + cat('mouthPressRight') + cat('mouthFrownLeft') + cat('mouthFrownRight')) / 4;
   t.stability += computeStabilityScore(landmarks, t.prevY);
 
   const closed = (cat('eyeBlinkLeft') + cat('eyeBlinkRight')) / 2 > 0.5;
@@ -50,6 +57,9 @@ export function summarize(t: Tracker): NonVerbalSummary {
     presence: t.frames ? t.detected / t.frames : 0,
     gazeOnRatio: t.gazeOn / d,
     smileAvg: t.smile / d,
+    smileRatio: t.smileFrames / d,
+    frownAvg: t.frown / d,
+    tensionAvg: t.tension / d,
     stabilityAvg: t.detected ? t.stability / d : 0,
     blinkPerMin: t.blinks / minutes,
   };

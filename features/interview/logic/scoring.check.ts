@@ -20,10 +20,15 @@ assert.equal(scoreTiming({ ...ok, speechSpanSec: 0 }, 'main'), 0);
 assert.equal(scoreTiming({ ...ok, speechSpanSec: 15 }, 'main'), 50);
 assert.equal(scoreTiming({ ...ok, leadingSilenceSec: 7 }, 'main'), 80);
 
-// 비언어: 정면 응시 + 옅은 미소 = 높음, 얼굴 없음 = 0
-const good = scoreNonVerbal({ presence: 1, gazeOnRatio: 0.9, smileAvg: 0.2, stabilityAvg: 0.95, blinkPerMin: 18 });
+// 비언어: 정면 응시 + 미소 자주 = 높음, 무표정 = 기본점, 찌푸리고 굳으면 감점, 얼굴 없음 = 0
+const face = { presence: 1, gazeOnRatio: 0.9, smileAvg: 0.2, smileRatio: 0.2, frownAvg: 0.05, tensionAvg: 0.1, stabilityAvg: 0.95, blinkPerMin: 18 };
+const good = scoreNonVerbal(face);
 assert.deepEqual(good, { eyeContact: 90, expression: 100, posture: 95 });
-const away = scoreNonVerbal({ presence: 0, gazeOnRatio: 0, smileAvg: 0, stabilityAvg: 0, blinkPerMin: 0 });
+const neutral = scoreNonVerbal({ ...face, smileAvg: 0, smileRatio: 0 }).expression;
+const tense = scoreNonVerbal({ ...face, smileAvg: 0, smileRatio: 0, frownAvg: 0.4, tensionAvg: 0.4 }).expression;
+assert.equal(neutral, 70);
+assert.equal(tense, 35);
+const away = scoreNonVerbal({ presence: 0, gazeOnRatio: 0, smileAvg: 0, smileRatio: 0, frownAvg: 0, tensionAvg: 0, stabilityAvg: 0, blinkPerMin: 0 });
 assert.deepEqual(away, { eyeContact: 0, expression: 0, posture: 0 });
 
 // 호감도: 태도 나쁘면 기술 면접관보다 인사/임원이 더 깎인다

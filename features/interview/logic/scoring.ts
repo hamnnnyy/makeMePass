@@ -7,15 +7,18 @@ export type RoleValues = Record<InterviewerRole, number>;
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
+// ponytail: 표정 임계값은 blendshape 일반값 기준 추정치. 실측이 쌓이면 claude_feedback.nonVerbal 로 보정.
+const EXPR = { base: 70, smileRatioFull: 0.15, frownFrom: 0.2, tensionFrom: 0.25 };
+
 // 비언어 점수 (0-100)
 export function scoreNonVerbal(s: NonVerbalSummary) {
   const eyeContact = Math.round(100 * s.gazeOnRatio * s.presence);
 
-  // 무표정(굳음)도, 과한 웃음도 감점. 옅은 미소 0.1~0.5 구간이 만점.
-  let expression =
-    s.smileAvg < 0.1 ? 50 + (s.smileAvg / 0.1) * 50
-    : s.smileAvg > 0.5 ? 100 - (s.smileAvg - 0.5) * 100
-    : 100;
+  // 차분한 무표정이 기본점. 미소가 자주 보이면 가산, 찌푸림·입 굳음·과한 웃음은 감점.
+  let expression = EXPR.base + (100 - EXPR.base) * Math.min(1, s.smileRatio / EXPR.smileRatioFull);
+  if (s.smileAvg > 0.5) expression -= (s.smileAvg - 0.5) * 100;
+  expression -= Math.min(25, Math.max(0, s.frownAvg - EXPR.frownFrom) * 100);
+  expression -= Math.min(25, Math.max(0, s.tensionAvg - EXPR.tensionFrom) * 100);
   // 평소 분당 15~20회. 35회 넘게 깜빡이면 긴장 신호로 본다.
   if (s.blinkPerMin > 35) expression -= Math.min(30, s.blinkPerMin - 35);
 
