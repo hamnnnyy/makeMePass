@@ -85,7 +85,8 @@ export default function SetupPage() {
     setStarting(true);
     setError(null);
     try {
-      await createSession(orgId!, mode!, interviewType, questionCount, coverLetterFile);
+      const res = await createSession(orgId!, mode!, interviewType, questionCount, coverLetterFile);
+      if (res?.error) { setError(res.error); setStarting(false); }
     } catch {
       setError('면접을 준비하지 못했습니다. 잠시 후 다시 시도해 주세요.');
       setStarting(false);

@@ -13,6 +13,8 @@ import { INTERVIEW_TYPES, INTERVIEW_TYPE_INFO, PT_TOPIC_PREFIX, type InterviewTy
 type Planned = { text: string; role: InterviewerRole; questionId: string | null };
 
 const MAX_PDF_BYTES = 5 * 1024 * 1024;
+// 하루 면접 시작 횟수 (Gemini 비용·남용 방지). KST 자정 기준.
+const DAILY_SESSION_LIMIT = 10;
 
 // 자소서 PDF를 요약하고, 자소서 기반 질문을 만든다
 async function readCoverLetter(file: File, orgName: string, count: number) {
@@ -85,6 +87,17 @@ export default async function createSession(
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
+
+  const todayKst = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
+  const { count: todayCount } = await supabase
+    .from('interview_sessions')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', user.id)
+    .gte('started_at', `${todayKst}T00:00:00+09:00`);
+  // 서버 액션의 throw 메시지는 프로덕션에서 가려지므로 알려줄 오류는 값으로 돌려준다
+  if ((todayCount ?? 0) >= DAILY_SESSION_LIMIT) {
+    return { error: `오늘은 면접을 ${DAILY_SESSION_LIMIT}번까지 볼 수 있어요. 내일 다시 도전해 주세요.` };
+  }
 
   const { data: org, error: orgError } = await supabase
     .from('organizations')
