@@ -14,24 +14,21 @@ export function getGeminiClient(): GoogleGenAI {
 type Params = Parameters<GoogleGenAI['models']['generateContent']>[0];
 const RETRYABLE = new Set([429, 500, 503, 504]);
 
-// 모델 과부하(503)가 잦아서, 같은 모델로 한 번 더 시도한 뒤 다음 모델로 넘어간다
+// 과부하(503)·한도(429)·타임아웃이면 기다리지 않고 바로 다음 모델로 넘어간다
 export async function generateWithFallback(models: readonly string[], params: Omit<Params, 'model'>) {
   let lastError: unknown;
   for (const model of models) {
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        // 과부하 때 응답 없이 오래 붙잡히는 경우가 있어 시도마다 45초 제한
-        return await getGeminiClient().models.generateContent({
-          ...params,
-          model,
-          config: { ...params.config, httpOptions: { timeout: 45_000, ...params.config?.httpOptions } },
-        });
-      } catch (e) {
-        lastError = e;
-        const status = (e as { status?: number }).status;
-        if (status !== undefined && !RETRYABLE.has(status)) throw e; // 타임아웃(status 없음)은 재시도
-        await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
-      }
+    try {
+      return await getGeminiClient().models.generateContent({
+        ...params,
+        model,
+        config: { ...params.config, httpOptions: { timeout: 20_000, ...params.config?.httpOptions } },
+      });
+    } catch (e) {
+      lastError = e;
+      const status = (e as { status?: number }).status;
+      if (status !== undefined && !RETRYABLE.has(status)) throw e; // 요청 자체가 잘못된 경우
+      console.warn(`Gemini ${model} failed (${status ?? 'timeout'}), trying next model`);
     }
   }
   throw lastError;
