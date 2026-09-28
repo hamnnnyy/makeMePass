@@ -8,6 +8,7 @@ import { CLOSING_QUESTION, FOLLOW_UP_OFFSET, INTRO_QUESTION, MODE_TONE, type Ans
 import { INTERVIEW_TYPE_INFO, PT_FOLLOW_UPS, PT_TOPIC_PREFIX } from '@/lib/constants/interviewTypes';
 import { INTERVIEWER_ROLES, type InterviewerRole } from '@/lib/constants/roles';
 import { PEERS } from '@/lib/constants/peers';
+import { VIOLATIONS, type ViolationType } from '@/lib/constants/disqualify';
 import type { InterviewMode } from '@/lib/constants/modes';
 import type { NonVerbalSummary } from '@/features/mediapipe/logic/nonVerbal';
 import type { AudioStats } from '../logic/audio';
@@ -22,6 +23,7 @@ export interface EvaluateResult {
   reactionRole: InterviewerRole;
   followUp: { id: string; text: string; role: InterviewerRole } | null;
   eliminatedBy: InterviewerRole | null;  // 탈락이면 탈락시킨 면접관
+  disqualified: { type: ViolationType; quote: string } | null;  // 실격 (블라인드 위반·부적절한 발언)
 }
 
 interface Verbal {
@@ -32,6 +34,7 @@ interface Verbal {
   deltas: RoleValues;
   org_fit: number;
   org_fit_reason: string;
+  violation: { type: 'none' | ViolationType; quote: string; detail: string };
   delta_reasons: Record<InterviewerRole, string>;
   inner_voices: Record<InterviewerRole, string>;
   strengths: string;
@@ -67,6 +70,16 @@ const VERBAL_SCHEMA = {
       properties: { hr: { type: 'string' }, tech: { type: 'string' }, exec: { type: 'string' } },
       required: ['hr', 'tech', 'exec'],
     },
+    violation: {
+      type: 'object',
+      description: `실격 사유 판정. blind = ${VIOLATIONS.blind.rule}. conduct = ${VIOLATIONS.conduct.rule}. 전공·자격증·경력·동아리 이름, "대학 때" 같은 일반 언급, 기관의 지역 사업 이야기는 위반이 아니다. 확실할 때만 표시하고 애매하면 none`,
+      properties: {
+        type: { type: 'string', enum: ['none', 'blind', 'conduct'] },
+        quote: { type: 'string', description: '위반한 표현을 답변에서 글자 그대로 옮긴 것. none 이면 빈 문자열' },
+        detail: { type: 'string', description: '무엇이 왜 위반인지 한 문장. none 이면 빈 문자열' },
+      },
+      required: ['type', 'quote', 'detail'],
+    },
     org_fit: { type: 'integer', minimum: 0, maximum: 100, description: '기관 적합도: 답변이 [기관] 정보의 인재상·핵심가치·주요 사업·최근 현안과 얼마나 맞닿는가. 기관과 무관한 일반론 50, 기관 특징을 구체적으로 연결하면 70 이상, 기관 사업을 잘못 알거나 인재상과 반대되는 태도면 30 이하' },
     org_fit_reason: { type: 'string', description: '기관 적합도 근거 한 문장. 어떤 인재상·가치·사업과 연결됐는지, 또는 무엇이 빠졌는지' },
     strengths: { type: 'string', description: '잘한 점 한 문장' },
@@ -80,7 +93,7 @@ const VERBAL_SCHEMA = {
       required: ['ask', 'role', 'question'],
     },
   },
-  required: ['transcript', 'filler_count', 'score_content', 'score_fluency', 'deltas', 'org_fit', 'org_fit_reason', 'delta_reasons', 'inner_voices', 'strengths', 'improvement', 'nonverbal_feedback', 'reaction', 'follow_up'],
+  required: ['transcript', 'filler_count', 'score_content', 'score_fluency', 'deltas', 'violation', 'org_fit', 'org_fit_reason', 'delta_reasons', 'inner_voices', 'strengths', 'improvement', 'nonverbal_feedback', 'reaction', 'follow_up'],
 };
 
 const num = (v: unknown, lo: number, hi: number) =>
@@ -275,6 +288,7 @@ ${isText ? `${nvLine}\n[지원자 답변(텍스트 입력)]\n${answerText}` : `$
       // 복기에서 호감도 변화를 '답변 내용' vs '태도·시간 보정'으로 나눠 보여주기 위해 저장
       reasons: v.delta_reasons ?? null,
       orgFit, orgFitReason: v.org_fit_reason ?? '',
+      violation: v.violation?.type && v.violation.type !== 'none' ? v.violation : null,
       voices: v.inner_voices ?? null,  // 복기에서 면접관 속마음 말풍선으로 보여준다
       verbalDeltas: {
         hr: Math.round(verbalDeltas.hr), tech: Math.round(verbalDeltas.tech), exec: Math.round(verbalDeltas.exec),
@@ -284,6 +298,27 @@ ${isText ? `${nvLine}\n[지원자 답변(텍스트 입력)]\n${answerText}` : `$
     },
     answered_at: new Date().toISOString(),
   }).eq('id', sessionQuestionId);
+
+  // 실격: 모델이 인용한 위반 표현이 실제 답변에 있을 때만 인정한다 (없는 말을 지어내 실격시키지 않도록)
+  const answer = (isText ? answerText : v.transcript ?? '').replace(/\s/g, '');
+  const quote = (v.violation?.quote ?? '').trim();
+  const disqualified = v.violation && v.violation.type !== 'none' && quote.length >= 2 && answer.includes(quote.replace(/\s/g, ''))
+    ? { type: v.violation.type, quote } : null;
+  if (disqualified) {
+    await supabase.from('interview_sessions').update({
+      status: 'eliminated',
+      result: 'fail_disqualified',
+      veto_role: role,
+      disqualification: { ...disqualified, detail: v.violation.detail ?? '', question: sq.question_text, role },
+      ended_at: new Date().toISOString(),
+      duration_seconds: Math.round((Date.now() - new Date(session.started_at).getTime()) / 1000),
+    }).eq('id', sq.session_id);
+    // 상태 변경 트리거가 최종 점수를 마지막 sequence 문항 기준으로 덮어쓰므로 실제 값으로 다시 쓴다
+    await supabase.from('interview_sessions').update({
+      hr_final_score: favor.hr, tech_final_score: favor.tech, exec_final_score: favor.exec,
+    }).eq('id', sq.session_id);
+    return { favor, reaction: '', reactionRole: role, followUp: null, eliminatedBy: null, disqualified };
+  }
 
   const verdict = judge(favor, org);
   const eliminated = verdict.result === 'fail_eliminate';
@@ -327,5 +362,6 @@ ${isText ? `${nvLine}\n[지원자 답변(텍스트 입력)]\n${answerText}` : `$
     reactionRole: role,
     followUp,
     eliminatedBy: eliminated ? verdict.lowRole : null,
+    disqualified: null,
   };
 }

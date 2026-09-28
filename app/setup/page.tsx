@@ -8,6 +8,7 @@ import { Paperclip } from 'lucide-react';
 import type { InterviewMode } from '@/lib/constants/modes';
 import { MODE_LABELS } from '@/lib/constants/modes';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { BLIND_NOTICE } from '@/lib/constants/disqualify';
 import { OrgPicker } from '@/features/interview/components/OrgPicker';
 import createSession from '@/features/interview/server/createSession.server';
 import { INTERVIEW_TYPES, INTERVIEW_TYPE_INFO, TURN_TYPES, type InterviewType } from '@/lib/constants/interviewTypes';
@@ -123,7 +124,8 @@ export default function SetupPage() {
 
         {step === 3 && (
           <div>
-            <h2 className="text-3xl mb-8">면접 방식을 정해 주세요</h2>
+            <h2 className="text-3xl mb-3">면접 방식을 정해 주세요</h2>
+            <p className="text-sm text-red-300 mb-8">{BLIND_NOTICE}</p>
             <div className="space-y-8">
               {/* 면접 유형 */}
               <div>

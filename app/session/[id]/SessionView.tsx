@@ -5,6 +5,7 @@ import { InterviewerPanel } from '@/features/interviewer/components/InterviewerP
 import { moodOf } from '@/features/interviewer/components/Portrait';
 import { INTERVIEWER_ROLES } from '@/lib/constants/roles';
 import { DialogueBox } from '@/features/interviewer/components/DialogueBox';
+import { BLIND_NOTICE, DISQUALIFY_LINE } from '@/lib/constants/disqualify';
 import type { InterviewerRole } from '@/lib/constants/roles';
 import {
   ANSWER_LIMIT_SEC, CLOSING_QUESTION, CLOSING_LINE, ELIMINATED_LINE, FOLLOW_UP_OFFSET, INTRO_QUESTION,
@@ -83,6 +84,7 @@ export function SessionView({
   });
   const [remaining, setRemaining] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [finalLine, setFinalLine] = useState<string | null>(null);  // 면접을 끝내는 면접관의 마지막 말
   const [deltas, setDeltas] = useState<{ values: FavorState; key: number } | null>(null);
   const [textMode, setTextMode] = useState(false);  // 말하기 어려울 때 텍스트로 답변
   const [answerText, setAnswerText] = useState('');
@@ -113,6 +115,7 @@ export function SessionView({
 
   async function finishInterview(line: string, role: InterviewerRole = 'exec') {
     setPhase('ending');
+    setFinalLine(line);
     await say(line, role);
     await endSession(session.id);
   }
@@ -208,6 +211,7 @@ export function SessionView({
       });
       setFavor(r.favor);
 
+      if (r.disqualified) return finishInterview(DISQUALIFY_LINE[r.disqualified.type], r.reactionRole);
       if (r.eliminatedBy) return finishInterview(ELIMINATED_LINE, r.eliminatedBy);
 
       if (r.followUp) {
@@ -320,13 +324,14 @@ export function SessionView({
               <span className="text-neutral-400 text-sm">
                 카메라를 정면에 두고, 면접관(화면)을 바라보며 답변하세요. 질문이 끝나면 바로 녹음이 시작됩니다.
                 {hasPeers && ' AI 지원자가 먼저 발언하면 이어서 내 차례가 옵니다.'}
+                <span className="block mt-2 text-red-300">{BLIND_NOTICE}</span>
               </span>
             ) : currentQuestion && answerKind(currentQuestion, session.interview_type) === 'pt' ? (
               <div className="whitespace-pre-line">
                 <p className="text-xs text-pink-400 mb-1">PT 주제 · 준비 {PT_PREP_SEC / 60}분 · 발표 최대 3분</p>
                 {currentQuestion.question_text.slice(PT_TOPIC_PREFIX.length)}
               </div>
-            ) : currentQuestion?.question_text}
+            ) : phase === 'ending' && finalLine ? finalLine : currentQuestion?.question_text}
           </DialogueBox>
         );
       })()}

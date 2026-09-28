@@ -5,6 +5,7 @@ import { getPersonaNames } from '@/features/interviewer/personaNames';
 import { Portrait, moodOf } from '@/features/interviewer/components/Portrait';
 import type { InterviewMode } from '@/lib/constants/modes';
 import { PEERS } from '@/lib/constants/peers';
+import { VIOLATIONS, type ViolationType } from '@/lib/constants/disqualify';
 import { PageHeader } from '@/components/layout/PageHeader';
 
 type ScoreKey = 'score_content' | 'score_fluency' | 'score_eye_contact' | 'score_expression' | 'score_timing';
@@ -20,6 +21,7 @@ interface Feedback {
   posture?: number | null;
   orgFit?: number | null;
   orgFitReason?: string;
+  violation?: { type: ViolationType; quote: string; detail: string } | null;
   reasons?: Partial<Record<InterviewerRole, string>> | null;
   voices?: Partial<Record<InterviewerRole, string>> | null;
   verbalDeltas?: Record<InterviewerRole, number>;
@@ -344,6 +346,14 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
                         );
                       })}
                     </div>
+
+                    {fb?.violation && (
+                      <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs leading-relaxed">
+                        <p className="font-bold text-red-300">실격 · {VIOLATIONS[fb.violation.type].label}</p>
+                        <p className="text-neutral-200">&ldquo;{fb.violation.quote}&rdquo;</p>
+                        {fb.violation.detail && <p className="text-neutral-400">{fb.violation.detail}</p>}
+                      </div>
+                    )}
 
                     {(fb?.strengths || fb?.improvement || fb?.nonverbalFeedback || fb?.orgFitReason) && (
                       <ul className="flex flex-col gap-1.5 text-xs leading-relaxed">

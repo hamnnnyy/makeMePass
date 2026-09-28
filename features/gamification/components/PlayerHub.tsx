@@ -8,6 +8,7 @@ const RESULT_CHIP = {
   pass: { label: '합격', color: '#22c55e' },
   fail_veto: { label: '결렬', color: '#f97316' },
   fail_eliminate: { label: '탈락', color: '#ef4444' },
+  fail_disqualified: { label: '실격', color: '#dc2626' },
   pending: { label: '중단', color: '#737373' },
 } as const;
 

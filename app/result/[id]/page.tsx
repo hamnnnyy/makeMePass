@@ -12,11 +12,13 @@ import { getPlayerStats } from '@/features/gamification/server/playerStats';
 import { levelInfo, rankName, sessionXp, ORB_COLORS } from '@/features/gamification/logic/level';
 import { LevelBar } from '@/features/gamification/components/LevelBar';
 import { INTERVIEW_TYPE_INFO } from '@/lib/constants/interviewTypes';
+import { DISQUALIFY_LINE, VIOLATIONS } from '@/lib/constants/disqualify';
 
 const TITLE = {
   pass: '최종 합격',
   fail_veto: '합의 결렬',
   fail_eliminate: '면접 종료',
+  fail_disqualified: '실격',
   pending: '집계 중',
 } as const;
 
@@ -63,7 +65,8 @@ export default async function ResultPage({ params }: { params: Promise<{ id: str
   const who = (r: InterviewerRole) => `${ROLE_LABELS[r]} ${names[r]} (${favor[r]}%)`;
 
   // 탈락·결렬이면 결정적인 면접관을 가운데에 크게
-  const focus = result === 'fail_eliminate' || result === 'fail_veto' ? session.veto_role : null;
+  const focus = result === 'fail_eliminate' || result === 'fail_veto' || result === 'fail_disqualified' ? session.veto_role : null;
+  const dq = session.disqualification;
   const lowest = INTERVIEWER_ROLES.reduce((a, b) => (favor[b] < favor[a] ? b : a));
   const order: InterviewerRole[] = focus
     ? [...INTERVIEWER_ROLES.filter((r) => r !== focus).slice(0, 1), focus, ...INTERVIEWER_ROLES.filter((r) => r !== focus).slice(1)]
@@ -73,6 +76,7 @@ export default async function ResultPage({ params }: { params: Promise<{ id: str
     abandoned ? null
     : result === 'pass' ? ['hr', PASS_LINE]
     : result === 'fail_eliminate' ? [focus ?? lowest, ELIMINATED_LINE]
+    : result === 'fail_disqualified' && dq ? [dq.role, DISQUALIFY_LINE[dq.type]]
     : [focus ?? lowest, OBJECTION_LINE[focus ?? lowest]];
 
   const answered = questions ?? [];
@@ -139,6 +143,16 @@ export default async function ResultPage({ params }: { params: Promise<{ id: str
             <h2 className="text-lg font-semibold">평가 없음</h2>
             <p className="text-xs text-neutral-500">답변한 문항이 없어 결과를 내지 않았습니다.</p>
           </>
+        ) : result === 'fail_disqualified' && dq ? (
+          <>
+            <span className="text-xs font-bold text-red-400 bg-red-500/15 rounded-full px-3 py-1 mb-1">실격 · {VIOLATIONS[dq.type].label}</span>
+            <p className="text-sm text-neutral-100 mt-2">&ldquo;{dq.quote}&rdquo;</p>
+            {dq.detail && <p className="text-xs text-neutral-400 leading-relaxed">{dq.detail}</p>}
+            <hr className="w-full border-neutral-700 my-3" />
+            <p className="text-xs text-neutral-500">위반한 문항</p>
+            <p className="text-sm">[{ROLE_LABELS[dq.role]}] {dq.question}</p>
+            <p className="text-[11px] text-neutral-500 mt-2 leading-relaxed">실제 공공기관 블라인드 면접도 인적사항을 말하면 불이익을 받습니다. {VIOLATIONS[dq.type].rule}은 피하세요.</p>
+          </>
         ) : result === 'fail_eliminate' ? (
           <>
             <h2 className="text-lg font-semibold">호감도 임계값 미달</h2>
@@ -201,7 +215,7 @@ export default async function ResultPage({ params }: { params: Promise<{ id: str
           href="/setup"
           className="px-7 py-3 rounded-full border border-neutral-600 hover:border-neutral-400 text-neutral-200 transition-colors font-medium"
         >
-          {result === 'fail_eliminate' ? '재도전' : '한 번 더'}
+          {result === 'fail_eliminate' || result === 'fail_disqualified' ? '재도전' : '한 번 더'}
         </Link>
       </div>
 
