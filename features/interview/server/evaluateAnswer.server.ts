@@ -28,6 +28,7 @@ interface Verbal {
   score_content: number;
   score_fluency: number;
   deltas: RoleValues;
+  delta_reasons: Record<InterviewerRole, string>;
   strengths: string;
   improvement: string;
   nonverbal_feedback: string;
@@ -49,6 +50,12 @@ const VERBAL_SCHEMA = {
       properties: { hr: { type: 'integer' }, tech: { type: 'integer' }, exec: { type: 'integer' } },
       required: ['hr', 'tech', 'exec'],
     },
+    delta_reasons: {
+      type: 'object',
+      description: '각 면접관이 deltas 점수를 준 이유 한 문장씩. 답변의 어느 부분 때문인지 구체적으로 짚는다 (예: "지원동기에 기관 사업 언급이 없어 준비가 부족해 보임")',
+      properties: { hr: { type: 'string' }, tech: { type: 'string' }, exec: { type: 'string' } },
+      required: ['hr', 'tech', 'exec'],
+    },
     strengths: { type: 'string', description: '잘한 점 한 문장' },
     improvement: { type: 'string', description: '고칠 점 한 문장. 가능하면 더 나은 표현 예시 포함' },
     nonverbal_feedback: { type: 'string', description: '[비언어 측정] 값을 근거로 시선·표정·자세·긴장도에 대한 조언 한 문장. 측정값이 없으면 빈 문자열' },
@@ -60,7 +67,7 @@ const VERBAL_SCHEMA = {
       required: ['ask', 'role', 'question'],
     },
   },
-  required: ['transcript', 'filler_count', 'score_content', 'score_fluency', 'deltas', 'strengths', 'improvement', 'nonverbal_feedback', 'reaction', 'follow_up'],
+  required: ['transcript', 'filler_count', 'score_content', 'score_fluency', 'deltas', 'delta_reasons', 'strengths', 'improvement', 'nonverbal_feedback', 'reaction', 'follow_up'],
 };
 
 const num = (v: unknown, lo: number, hi: number) =>
@@ -74,6 +81,9 @@ function parseMeta(raw: FormDataEntryValue | null) {
     presence: num(m.nonVerbal?.presence, 0, 1),
     gazeOnRatio: num(m.nonVerbal?.gazeOnRatio, 0, 1),
     smileAvg: num(m.nonVerbal?.smileAvg, 0, 1),
+    smileRatio: num(m.nonVerbal?.smileRatio, 0, 1),
+    frownAvg: num(m.nonVerbal?.frownAvg, 0, 1),
+    tensionAvg: num(m.nonVerbal?.tensionAvg, 0, 1),
     stabilityAvg: num(m.nonVerbal?.stabilityAvg, 0, 1),
     blinkPerMin: num(m.nonVerbal?.blinkPerMin, 0, 200),
   };
@@ -136,7 +146,7 @@ export async function evaluateAnswer(sessionQuestionId: string, formData: FormDa
   const { nv, audio, hasMeta } = parseMeta(formData.get('meta'));
   const nvAll = scoreNonVerbal(nv);  // 얼굴이 안 잡혀도 0점으로 반영 (카메라를 피한 것도 평가 대상)
   const nvLine = hasMeta
-    ? `[비언어 측정] 얼굴 검출 ${Math.round(nv.presence * 100)}%, ${isText ? '' : `정면 응시 ${Math.round(nv.gazeOnRatio * 100)}%, `}평균 미소 ${nv.smileAvg.toFixed(2)}(0.1~0.5 적당), 자세 안정 ${Math.round(nv.stabilityAvg * 100)}%, 분당 눈 깜빡임 ${Math.round(nv.blinkPerMin)}회(35회 이상이면 긴장)`
+    ? `[비언어 측정] 얼굴 검출 ${Math.round(nv.presence * 100)}%, ${isText ? '' : `정면 응시 ${Math.round(nv.gazeOnRatio * 100)}%, `}미소 보인 시간 ${Math.round(nv.smileRatio * 100)}%, 미간 찌푸림 ${nv.frownAvg.toFixed(2)}(0.2 이상이면 굳은 인상), 입 굳음 ${nv.tensionAvg.toFixed(2)}(0.25 이상이면 긴장), 자세 안정 ${Math.round(nv.stabilityAvg * 100)}%, 분당 눈 깜빡임 ${Math.round(nv.blinkPerMin)}회(35회 이상이면 긴장)`
     : '';
 
   const role = sq.asked_by_role as InterviewerRole;
@@ -239,6 +249,11 @@ ${isText ? `${nvLine}\n[지원자 답변(텍스트 입력)]\n${answerText}` : `$
       inputMode: isText ? 'text' : 'voice',
       nonverbalFeedback: v.nonverbal_feedback ?? '',
       posture: nvScores?.posture ?? null,
+      // 복기에서 호감도 변화를 '답변 내용' vs '태도·시간 보정'으로 나눠 보여주기 위해 저장
+      reasons: v.delta_reasons ?? null,
+      verbalDeltas: {
+        hr: Math.round(verbalDeltas.hr), tech: Math.round(verbalDeltas.tech), exec: Math.round(verbalDeltas.exec),
+      },
       nonVerbal: nv,
       ...(isText ? {} : { audio }),
     },
