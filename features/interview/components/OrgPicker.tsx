@@ -7,8 +7,14 @@ import { createClient } from '@/lib/supabase/client';
 
 export type OrgOption = { code: string; name_ko: string; category: string | null; description: string | null };
 
-// public/orgs/{code}.png 로고가 있는 기관. 없으면 글자 타일로 보여준다.
-const LOGOS = new Set(['BOK', 'HF', 'HIRA', 'HUG', 'KAMCO', 'KEPCO', 'LH']);
+// public/orgs/{code}.{확장자} 로고. 없으면 글자 타일로 보여준다.
+// 새 로고는 위키미디어 공용·기관 공식 홈페이지에서 받았다 (2026-09).
+const LOGOS: Record<string, string> = {
+  BOK: 'png', HF: 'png', HIRA: 'png', HUG: 'png', KAMCO: 'png', KEPCO: 'png', LH: 'png',
+  KDB: 'png', IBK: 'gif', KIBO: 'svg', KIC: 'png', KSURE: 'jpg', KOGAS: 'svg', KEA: 'svg', KDN: 'png',
+  EX: 'svg', KR: 'png', KAC: 'svg', BPA: 'svg', KWATER: 'png', NHIS: 'png', HRDK: 'svg', KTO: 'svg',
+  KOTRA: 'jpg', KOMSCO: 'svg',
+};
 // 흔히 부르는 줄임말로도 찾게 한다
 const ALIASES: Record<string, string> = {
   KAMCO: '캠코', KEPCO: '한전', KHNP: '한수원', KOGAS: '가스공사', KORAIL: '코레일', IIAC: '인국공 인천공항',
@@ -110,8 +116,11 @@ export function OrgPicker({ value, onChange }: { value: string | null; onChange:
                   value === org.code ? 'ring-2 ring-pink-500 bg-pink-500/10' : 'hover:bg-neutral-700/80'
                 }`}
               >
-                {LOGOS.has(org.code) ? (
-                  <Image src={`/orgs/${org.code}.png`} alt="" width={96} height={72} className="h-[72px] w-24 object-contain" />
+                {LOGOS[org.code] ? (
+                  // 남색·검정 글자 로고가 어두운 배경에 묻히지 않게 흰 칩 위에 둔다
+                  <span className="h-[72px] w-full max-w-36 rounded-xl bg-white flex items-center justify-center px-3">
+                    <Image src={`/orgs/${org.code}.${LOGOS[org.code]}`} alt="" width={120} height={56} unoptimized className="max-h-12 w-auto object-contain" />
+                  </span>
                 ) : (
                   <span className="h-[72px] flex items-center font-display text-2xl text-neutral-200">{shortName(org.code, org.name_ko)}</span>
                 )}
