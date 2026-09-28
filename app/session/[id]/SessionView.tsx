@@ -88,7 +88,7 @@ export function SessionView({
   const timerFmt = useTimer(phase !== 'lobby' && phase !== 'ending');
   const { videoRef, error: camError } = useMediaStream();
   const recorder = useRecorder();
-  const { speak, prefetch } = useTTS();
+  const { speak, prefetch, getLevel } = useTTS();
   const [speaker, setSpeaker] = useState<InterviewerRole | null>(null);
   const { ready: faceReady, resultRef } = useFaceLandmarker(videoRef);
   const metrics = useExpressionMetrics(resultRef, phase !== 'lobby');
@@ -262,7 +262,8 @@ export function SessionView({
         {INTERVIEWER_ROLES.map((role) => (
           <InterviewerPanel key={role} mode={session.mode} role={role} mood={moodOf(deltas?.values[role])}
             name={names[role]} favor={favor[role]} passLine={passLine}
-            delta={deltas ? { value: deltas.values[role], key: deltas.key } : undefined} speaking={speaker === role} />
+            delta={deltas ? { value: deltas.values[role], key: deltas.key } : undefined} speaking={speaker === role}
+            dimmed={speaker !== null && speaker !== role} getLevel={getLevel} />
         ))}
       </div>
 
