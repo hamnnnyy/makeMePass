@@ -5,11 +5,11 @@ import { InterviewerPanel } from '@/features/interviewer/components/InterviewerP
 import { moodOf } from '@/features/interviewer/components/Portrait';
 import { INTERVIEWER_ROLES } from '@/lib/constants/roles';
 import { DialogueBox } from '@/features/interviewer/components/DialogueBox';
-import { BLIND_NOTICE, DISQUALIFY_LINE } from '@/lib/constants/disqualify';
+import { BLIND_NOTICE, DISQUALIFY_LINE, DISQUALIFY_LINE_EN } from '@/lib/constants/disqualify';
 import type { InterviewerRole } from '@/lib/constants/roles';
 import {
-  ANSWER_LIMIT_SEC, CLOSING_QUESTION, CLOSING_LINE, ELIMINATED_LINE, FOLLOW_UP_OFFSET, INTRO_QUESTION,
-  greetingLine, type AnswerKind,
+  ANSWER_LIMIT_SEC, CLOSING_LINE, CLOSING_LINE_EN, ELIMINATED_LINE, ELIMINATED_LINE_EN, FOLLOW_UP_OFFSET,
+  greetingLine, greetingLineEn, isClosingQuestion, isIntroQuestion, type AnswerKind,
 } from '@/lib/constants/interview';
 import { useMediaStream } from '@/features/interview/hooks/useMediaStream';
 import { useRecorder } from '@/features/interview/hooks/useRecorder';
@@ -45,10 +45,10 @@ const PHASE_LABEL: Record<Phase, string> = {
 
 function answerKind(q: SessionQuestion, type: Session['interview_type']): AnswerKind {
   if (type === 'debate' || type === 'discussion') return 'turn';
-  if (q.question_text === CLOSING_QUESTION) return 'closing';
+  if (isClosingQuestion(q.question_text)) return 'closing';
   if (q.question_text.startsWith(PT_TOPIC_PREFIX)) return 'pt';
   if (q.is_follow_up) return 'followUp';
-  return q.question_text === INTRO_QUESTION ? 'intro' : 'main';
+  return isIntroQuestion(q.question_text) ? 'intro' : 'main';
 }
 
 function useTimer(running: boolean) {
@@ -96,7 +96,9 @@ export function SessionView({
   const timerFmt = useTimer(phase !== 'lobby' && phase !== 'ending');
   const { videoRef, error: camError } = useMediaStream();
   const recorder = useRecorder();
-  const { speak, prefetch, getLevel } = useTTS(session.mode);
+  // 영어면접은 면접관이 영어로 말한다
+  const english = session.interview_type === 'english';
+  const { speak, prefetch, getLevel } = useTTS(session.mode, english ? 'eng' : 'kor');
   const [speaker, setSpeaker] = useState<Speaker | null>(null);
   const [peerLine, setPeerLine] = useState<{ peer: PeerId; text: string } | null>(null);  // AI 지원자 자막
   const hasPeers = PEER_TYPES.includes(session.interview_type);
@@ -122,7 +124,7 @@ export function SessionView({
 
   async function ask(i: number) {
     const q = questionsRef.current[i];
-    if (!q) return finishInterview(CLOSING_LINE);
+    if (!q) return finishInterview(english ? CLOSING_LINE_EN : CLOSING_LINE);
     setIdx(i);
     setTextMode(false);
     setAnswerText('');
@@ -173,7 +175,7 @@ export function SessionView({
   async function start() {
     if (startIdx === 0) {
       setPhase('speaking');
-      await say(greetingLine(orgName), 'exec');
+      await say(english ? greetingLineEn(orgName) : greetingLine(orgName), 'exec');
       if (setup && (session.interview_type === 'debate' || session.interview_type === 'discussion')) {
         const kind = session.interview_type === 'debate' ? '논제' : '과제';
         await say(`오늘의 ${kind}는 ${setup.topic.split('\n')[0]} 입니다.${setup.userSide ? ` 지원자님은 ${setup.userSide} 측입니다.` : ''}`, 'exec');
@@ -211,8 +213,8 @@ export function SessionView({
       });
       setFavor(r.favor);
 
-      if (r.disqualified) return finishInterview(DISQUALIFY_LINE[r.disqualified.type], r.reactionRole);
-      if (r.eliminatedBy) return finishInterview(ELIMINATED_LINE, r.eliminatedBy);
+      if (r.disqualified) return finishInterview((english ? DISQUALIFY_LINE_EN : DISQUALIFY_LINE)[r.disqualified.type], r.reactionRole);
+      if (r.eliminatedBy) return finishInterview(english ? ELIMINATED_LINE_EN : ELIMINATED_LINE, r.eliminatedBy);
 
       if (r.followUp) {
         const fu: SessionQuestion = {

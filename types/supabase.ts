@@ -64,7 +64,7 @@ export interface Database {
           total_questions: number;
           duration_seconds: number | null;
           video_url: string | null;
-          interview_type: 'general' | 'personality' | 'job' | 'executive' | 'pt' | 'group' | 'debate' | 'discussion';  // migrations/20260928010000, 20260928020000
+          interview_type: 'general' | 'personality' | 'job' | 'executive' | 'pt' | 'group' | 'debate' | 'discussion' | 'english';  // migrations/20260928010000, 20260928020000
           group_setup: { topic: string; userSide?: string; peerSide?: string } | null;  // 토론·토의 주제와 편
           disqualification: { type: 'blind' | 'conduct'; quote: string; detail: string; question: string; role: InterviewerRole } | null;  // 실격 사유
           started_at: string;
@@ -89,10 +89,11 @@ export interface Database {
           is_general: boolean;
           source: string | null;
           tags: string[] | null;
+          language: 'ko' | 'en';  // migrations/20260929010000
           created_at: string;
           created_by: string | null;
         };
-        Insert: Omit<Database['public']['Tables']['questions']['Row'], 'id' | 'created_at'>;
+        Insert: Omit<Database['public']['Tables']['questions']['Row'], 'id' | 'created_at' | 'language'> & { language?: 'ko' | 'en' };
         Update: Partial<Database['public']['Tables']['questions']['Insert']>;
         Relationships: [];
       };

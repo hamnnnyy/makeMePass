@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/server';
 import { generateWithFallback } from '@/lib/gemini/client';
 import { MODELS } from '@/lib/gemini/models';
 import { sampleN } from '@/lib/utils/sample';
-import { CLOSING_QUESTION, INTRO_QUESTION, SEQUENCE_STEP } from '@/lib/constants/interview';
+import { CLOSING_QUESTION, CLOSING_QUESTION_EN, INTRO_QUESTION, INTRO_QUESTION_EN, SEQUENCE_STEP } from '@/lib/constants/interview';
 import { INTERVIEWER_ROLES, type InterviewerRole } from '@/lib/constants/roles';
 import type { InterviewMode } from '@/lib/constants/modes';
 import { INTERVIEW_TYPES, INTERVIEW_TYPE_INFO, PT_TOPIC_PREFIX, TURN_TYPES, type InterviewType } from '@/lib/constants/interviewTypes';
@@ -132,9 +132,9 @@ async function makeGroupTopic(brief: string, type: 'debate' | 'discussion'): Pro
 }
 
 // 기관 전용 질문이 적은 기관: 기관 특징(인재상·사업·현안)으로 맞춤 질문을 만든다
-async function makeOrgQuestions(brief: string, count: number, focus: string): Promise<Planned[]> {
+async function makeOrgQuestions(brief: string, count: number, focus: string, english = false): Promise<Planned[]> {
   const res = await generateWithFallback(MODELS.evaluation, {
-    contents: `${brief}\n\n위 기관 신입 공채 면접관이 실제로 물을 법한 기관 맞춤 질문 ${count}개를 만드세요. 인재상·핵심가치·주요 사업·최근 현안 중 서로 다른 것을 하나씩 겨냥하고, 어느 기관에나 통하는 일반 질문은 피하세요. 면접 관점: ${focus} 구어체 한 문장(60자 이내).`,
+    contents: `${brief}\n\n위 기관 신입 공채 면접관이 실제로 물을 법한 기관 맞춤 질문 ${count}개를 만드세요. 인재상·핵심가치·주요 사업·최근 현안 중 서로 다른 것을 하나씩 겨냥하고, 어느 기관에나 통하는 일반 질문은 피하세요. 면접 관점: ${focus} ${english ? '질문은 영어 면접관이 말하듯 자연스러운 영어 한 문장(20단어 이내)으로 쓰세요.' : '구어체 한 문장(60자 이내).'}`,
     config: {
       responseMimeType: 'application/json',
       responseJsonSchema: {
@@ -195,20 +195,24 @@ function discussionPlan(): Planned[] {
   const type: InterviewType = INTERVIEW_TYPES.includes(interviewType) ? interviewType : 'general';
   const categories = INTERVIEW_TYPE_INFO[type].categories;
 
-  // 공통 질문 + question_organizations 로 이 기관에 연결된 질문
-  const [{ data: general }, { data: linked }] = await Promise.all([
-    supabase.from('questions').select('id, text, target_role, category').eq('is_general', true),
-    supabase.from('question_organizations').select('questions(id, text, target_role, category)').eq('organization_id', org.id),
+  // 공통 질문 + question_organizations 로 이 기관에 연결된 질문. 영어면접은 영어 질문만, 나머지는 한국어 질문만.
+  const english = type === 'english';
+  const language = english ? 'en' : 'ko';
+  const [{ data: general }, { data: linkedRows }] = await Promise.all([
+    supabase.from('questions').select('id, text, target_role, category').eq('is_general', true).eq('language', language),
+    supabase.from('question_organizations').select('questions(id, text, target_role, category, language)').eq('organization_id', org.id),
   ]);
+  const linked = (linkedRows ?? []).filter((row) => row.questions?.language === language);
   const byId = new Map((general ?? []).map((q) => [q.id, q]));
-  for (const row of linked ?? []) if (row.questions) byId.set(row.questions.id, row.questions);
+  for (const row of linked) if (row.questions) byId.set(row.questions.id, row.questions);
   // 면접 유형에 맞는 카테고리만 (인성/직무/임원)
   const others = [...byId.values()].filter((q) => !categories || categories.includes(q.category));
 
   // 실제 면접 순서: 1분 자기소개 → (자소서 질문) → 본 질문 → 마지막 한마디
   let coverLetterId: string | null = null;
   let clQuestions: Planned[] = [];
-  if (!TURN_TYPES.includes(type) && coverLetterFile && coverLetterFile.size > 0) {
+  // 자소서 질문은 한국어로 만들어져서 영어면접에는 쓰지 않는다
+  if (!TURN_TYPES.includes(type) && !english && coverLetterFile && coverLetterFile.size > 0) {
     if (coverLetterFile.type !== 'application/pdf') throw new Error('자기소개서는 PDF만 지원합니다.');
     if (coverLetterFile.size > MAX_PDF_BYTES) throw new Error('자기소개서는 5MB 이하만 가능합니다.');
     const cl = await readCoverLetter(coverLetterFile, org.name_ko, Math.min(3, Math.floor((count - 1) / 2)));
@@ -247,18 +251,18 @@ function discussionPlan(): Planned[] {
     }
   } else {
     // 기관 전용 질문이 적으면 기관 특징으로 맞춤 질문 두 개를 만들어 섞는다 (실패해도 면접은 진행)
-    const orgQs = (linked?.length ?? 0) < 6 && mainCount >= 3
-      ? await makeOrgQuestions(orgBrief(org), 2, INTERVIEW_TYPE_INFO[type].focus).catch(() => [])
+    const orgQs = linked.length < 6 && mainCount >= 3
+      ? await makeOrgQuestions(orgBrief(org), 2, INTERVIEW_TYPE_INFO[type].focus, english).catch(() => [])
       : [];
     const main: Planned[] = sampleN([
       ...sampleN(others, mainCount - orgQs.length).map((q) => ({ text: q.text, role: q.target_role, questionId: q.id })),
       ...orgQs,
     ], mainCount);
     planned = [
-      { text: INTRO_QUESTION, role: 'hr', questionId: null, ...(withPeers ? { peers: both(0) } : {}) },
+      { text: english ? INTRO_QUESTION_EN : INTRO_QUESTION, role: 'hr', questionId: null, ...(withPeers ? { peers: both(0) } : {}) },
       ...clQuestions,
       ...main.map((q, i) => ({ ...q, ...(withPeers ? { peers: both(i + 1) } : {}) })),
-      { text: CLOSING_QUESTION, role: 'exec', questionId: null },
+      { text: english ? CLOSING_QUESTION_EN : CLOSING_QUESTION, role: 'exec', questionId: null },
     ];
   }
 

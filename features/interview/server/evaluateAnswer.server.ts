@@ -4,7 +4,7 @@ import { generateWithFallback } from '@/lib/gemini/client';
 import { MODELS } from '@/lib/gemini/models';
 import { createClient } from '@/lib/supabase/server';
 import { uploadSessionAudio } from '@/lib/storage/uploadBlob';
-import { CLOSING_QUESTION, FOLLOW_UP_OFFSET, INTRO_QUESTION, MODE_TONE, type AnswerKind } from '@/lib/constants/interview';
+import { FOLLOW_UP_OFFSET, MODE_TONE, isClosingQuestion, isIntroQuestion, type AnswerKind } from '@/lib/constants/interview';
 import { INTERVIEW_TYPE_INFO, PT_FOLLOW_UPS, PT_TOPIC_PREFIX } from '@/lib/constants/interviewTypes';
 import { INTERVIEWER_ROLES, type InterviewerRole } from '@/lib/constants/roles';
 import { PEERS } from '@/lib/constants/peers';
@@ -183,7 +183,8 @@ export async function evaluateAnswer(sessionQuestionId: string, formData: FormDa
     : '';
 
   const role = sq.asked_by_role as InterviewerRole;
-  const isClosing = sq.question_text === CLOSING_QUESTION;
+  const isClosing = isClosingQuestion(sq.question_text);
+  const english = session.interview_type === 'english';
   const isPt = session.interview_type === 'pt';
   // 토론·토의: 정해진 차례대로 진행하고 꼬리질문이 없다
   const isTurn = session.interview_type === 'debate' || session.interview_type === 'discussion';
@@ -196,7 +197,7 @@ export async function evaluateAnswer(sessionQuestionId: string, formData: FormDa
     : isClosing ? 'closing'
     : sq.question_text.startsWith(PT_TOPIC_PREFIX) ? 'pt'
     : sq.is_follow_up ? 'followUp'
-    : sq.question_text === INTRO_QUESTION ? 'intro'
+    : isIntroQuestion(sq.question_text) ? 'intro'
     : 'main';
 
   const prevQA = (history ?? [])
@@ -230,7 +231,11 @@ ${isText ? `${nvLine}\n[지원자 답변(텍스트 입력)]\n${answerText}` : `$
 평가 규칙:
 - 실제 공기업 면접처럼 엄격하게. 평범한 답변은 deltas 0 근처, 인상적이면 +, 부실하면 -.
 - 이 기관의 면접이다. 면접관마다 기관 특징을 기준으로 본다: exec 는 인재상·핵심가치·미션 부합, tech 는 주요 사업과 최근 현안 이해, hr 는 조직문화에 맞는 태도. 어느 기관에나 할 수 있는 일반론은 가점하지 않는다.
-- 답변이 없거나 질문과 무관하면 score_content 0~20, deltas는 -8 이하.
+- 답변이 없거나 질문과 무관하면 score_content 0~20, deltas는 -8 이하.${english ? `
+- 영어면접이다. 지원자는 영어로 답해야 하고, 한국어로 답하면 score_content 를 크게 깎는다.
+- score_fluency 는 영어 발음·유창성·문법·어휘의 정확성과 다양성 기준으로 매긴다.
+- reaction 과 follow_up.question 은 영어 면접관이 말하듯 자연스러운 영어로 쓴다 (reaction 은 "I see.", "Thank you for your answer."처럼 8단어 이내 짧은 맞장구, 질문은 20단어 이내).
+- strengths·improvement·delta_reasons·inner_voices·org_fit_reason·violation.detail 은 한국어로 쓰고, improvement 에는 더 나은 영어 표현 예시를 영어 문장 하나로 덧붙인다.` : ''}
 - 이전 답변과 모순되거나 자소서와 다르면 감점하고 꼬리질문으로 확인한다.
 - ${!allowFollowUp ? '이번 질문에는 꼬리질문을 하지 않는다 (follow_up.ask=false).'
   : isPt ? '발표 내용의 허점·근거·실행 방안을 파고드는 꼬리질문을 반드시 한다 (follow_up.ask=true). 앞서 한 질문과 겹치지 않게 한다.'

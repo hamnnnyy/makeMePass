@@ -11,6 +11,11 @@ export const VIOLATIONS = {
 } as const;
 export type ViolationType = keyof typeof VIOLATIONS;
 
+export const DISQUALIFY_LINE_EN: Record<ViolationType, string> = {
+  blind: 'You mentioned personal information, which is not allowed in a blind interview. We will end the interview here.',
+  conduct: 'That remark was not appropriate for an interview. We will end the interview here.',
+};
+
 export const DISQUALIFY_LINE: Record<ViolationType, string> = {
   blind: '블라인드 면접에서 인적사항을 말씀하셨습니다. 규정에 따라 여기서 면접을 마치겠습니다.',
   conduct: '면접에 적절하지 않은 발언이 있었습니다. 여기서 면접을 마치겠습니다.',

@@ -177,8 +177,8 @@ export default function SetupPage() {
                 </div>
               </div>}
 
-              {/* 자기소개서 — PT·토론·토의는 주제 과제라 사용하지 않음 */}
-              {!TURN_TYPES.includes(interviewType) && <div>
+              {/* 자기소개서 — PT·토론·토의는 주제 과제라, 영어면접은 영어 질문이라 사용하지 않음 */}
+              {!TURN_TYPES.includes(interviewType) && interviewType !== 'english' && <div>
                 <div className="flex justify-between items-center border-b border-neutral-700 pb-2 mb-6">
                   <span className="text-sm text-neutral-300">자기소개서 <span className="text-neutral-500">(선택 · PDF 5MB 이하 · 첨부 시 자소서 기반 질문 출제)</span></span>
                   {coverLetterFile && (

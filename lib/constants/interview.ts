@@ -4,6 +4,12 @@ import type { InterviewerRole } from './roles';
 export const INTRO_QUESTION = '1분 동안 자기소개 부탁드립니다.';
 export const CLOSING_QUESTION = '마지막으로 하고 싶은 말씀이 있으면 해주세요.';
 
+// 영어면접 고정 문항·대사
+export const INTRO_QUESTION_EN = 'Please introduce yourself in about one minute.';
+export const CLOSING_QUESTION_EN = 'Is there anything else you would like to tell us before we finish?';
+export const isIntroQuestion = (text: string) => text === INTRO_QUESTION || text === INTRO_QUESTION_EN;
+export const isClosingQuestion = (text: string) => text === CLOSING_QUESTION || text === CLOSING_QUESTION_EN;
+
 // session_questions.sequence 는 정수라 10 간격으로 두고 꼬리질문을 +5 에 끼운다
 export const SEQUENCE_STEP = 10;
 export const FOLLOW_UP_OFFSET = 5;
@@ -25,6 +31,11 @@ export const greetingLine = (orgName: string) =>
   `안녕하세요. ${orgName} 면접에 오신 것을 환영합니다. 긴장하지 마시고, 편하게 답변해 주세요.`;
 export const CLOSING_LINE = '수고하셨습니다. 결과는 추후 안내해 드리겠습니다.';
 export const ELIMINATED_LINE = '이번 면접은 여기까지 하겠습니다.';
+
+export const greetingLineEn = (orgName: string) =>
+  `Hello, and welcome to the ${orgName} interview. This interview will be conducted in English. Please take your time and answer comfortably.`;
+export const CLOSING_LINE_EN = 'Thank you for your time. We will let you know the result soon.';
+export const ELIMINATED_LINE_EN = "Let's stop the interview here. Thank you.";
 export const PASS_LINE = '수고하셨습니다. 나가보셔도 됩니다.';
 
 // 불합격·결렬 시 가장 낮게 평가한 면접관의 한마디

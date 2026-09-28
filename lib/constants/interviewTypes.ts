@@ -1,6 +1,6 @@
 import type { QuestionCategory } from '@/types/supabase';
 
-export const INTERVIEW_TYPES = ['general', 'personality', 'job', 'executive', 'pt', 'group', 'debate', 'discussion'] as const;
+export const INTERVIEW_TYPES = ['general', 'personality', 'job', 'executive', 'pt', 'group', 'debate', 'discussion', 'english'] as const;
 export type InterviewType = (typeof INTERVIEW_TYPES)[number];
 
 export const INTERVIEW_TYPE_INFO: Record<InterviewType, {
@@ -50,6 +50,12 @@ export const INTERVIEW_TYPE_INFO: Record<InterviewType, {
     desc: '찬반 주제로 AI 지원자와 입론·반론·최종 발언',
     categories: null,
     focus: '토론면접: 주장의 논리와 근거, 상대 주장을 정확히 짚은 반론, 감정적이지 않은 태도, 상대 발언 경청을 본다. 이기는 것보다 설득 과정과 태도가 중요하다.',
+  },
+  english: {
+    label: '영어면접',
+    desc: '영어로 묻고 영어로 답하는 면접, 피드백은 한국어',
+    categories: null,
+    focus: '영어면접: 답변 내용과 함께 영어 전달력(발음, 유창성, 문법, 어휘의 정확성과 다양성)을 본다. 한국어로 답하면 내용 점수를 크게 깎는다. 짧더라도 논리적으로 완결된 답변을 높이 평가한다.',
   },
   discussion: {
     label: '토의면접',
