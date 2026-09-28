@@ -28,6 +28,9 @@ const MOOD_PORTRAITS = new Set<string>([
 // 같은 이름으로 그림을 바꾸면 이미지 최적화·CDN 캐시가 예전 그림을 준다. 그림을 교체할 때 올린다.
 const VERSION = 2;
 
+// 그림 파일 주소 (예: 'cute-hr', 'peer-p1', 'cute-hr-happy')
+export const personaUrl = (name: string) => `/personas/${name}.png?v=${VERSION}`;
+
 export function portraitSrc(mode: InterviewMode, role: InterviewerRole, mood: Mood = 'neutral') {
   const base = `${mode}-${role}`;
   if (!FACES[base]) return null;

@@ -5,7 +5,9 @@ import { createClient } from '@/lib/supabase/server';
 import { createClient as createServiceClient } from '@/lib/supabase/service-role';
 import { getPlayerStats } from '@/features/gamification/server/playerStats';
 import { PlayerHub } from '@/features/gamification/components/PlayerHub';
-import { Portrait } from '@/features/interviewer/components/Portrait';
+import Image from 'next/image';
+import { personaUrl } from '@/features/interviewer/components/Portrait';
+import { PEERS } from '@/lib/constants/peers';
 import { getPersonaNames } from '@/features/interviewer/personaNames';
 import { ROLE_COLORS } from '@/lib/constants/roles';
 
@@ -16,11 +18,36 @@ const STEPS = [
   { icon: Heart, title: '호감도 판정과 도감', desc: '세 명 모두 합격선을 넘기면 합격. 합격한 모드의 면접관은 도감에 모입니다.' },
 ];
 
-const LINEUP = [
-  { role: 'hr', tilt: '-rotate-6 translate-y-6', align: 'text-left' },
-  { role: 'exec', tilt: 'z-10 scale-110', align: 'text-center' },
-  { role: 'tech', tilt: 'rotate-6 translate-y-6', align: 'text-right' },
-] as const;
+// 랜딩 배경에 흐르는 카드. 앞줄은 크게·이름표, 뒷줄은 표정 그림을 작고 흐리게.
+type Card = { file: string; name?: string; color: string };
+const BACK_ROW: Card[] = [
+  { file: 'cute-hr-happy', color: ROLE_COLORS.hr }, { file: 'cute-exec-happy', color: ROLE_COLORS.exec },
+  { file: 'cute-tech-happy', color: ROLE_COLORS.tech }, { file: 'cute-hr-upset', color: ROLE_COLORS.hr },
+  { file: 'cute-exec-upset', color: ROLE_COLORS.exec }, { file: 'cute-tech-upset', color: ROLE_COLORS.tech },
+];
+
+// 트랙을 두 번 이어 붙여 끊김 없이 돈다
+function Marquee({ cards, className, duration }: { cards: Card[]; className: string; duration: string }) {
+  return (
+    <div className="flex w-max gap-5 animate-marquee" style={{ ['--marquee-duration' as string]: duration }}>
+      {[...cards, ...cards].map((c, i) => (
+        <div
+          key={i}
+          className={`relative shrink-0 aspect-[2/3] rounded-2xl overflow-hidden bg-neutral-900 ${className}`}
+          style={{ boxShadow: `0 0 0 2px ${c.color}, 0 20px 40px -12px ${c.color}88` }}
+          aria-hidden={i >= cards.length}
+        >
+          <Image src={personaUrl(c.file)} alt="" fill sizes="200px" className="object-cover object-[50%_15%]" />
+          {c.name && (
+            <div className="absolute inset-x-0 bottom-0 px-3 pb-2.5 pt-8 bg-gradient-to-t from-black via-black/70 to-transparent">
+              <p className="font-display text-base drop-shadow" style={{ color: c.color }}>{c.name}</p>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export default async function LandingPage() {
   const supabase = await createClient();
@@ -37,15 +64,29 @@ export default async function LandingPage() {
     hub = <PlayerHub stats={stats} name={profile?.display_name ?? '사용자'} title={title?.name_ko ?? null} />;
   }
 
-  const names = await getPersonaNames(supabase, 'cute');
+  const [names, casual] = await Promise.all([getPersonaNames(supabase, 'cute'), getPersonaNames(supabase, 'casual')]);
+  const frontRow: Card[] = [
+    { file: 'cute-hr', name: names.hr, color: ROLE_COLORS.hr },
+    { file: 'peer-p2', name: `지원자 ${PEERS.p2.name}`, color: PEERS.p2.color },
+    { file: 'cute-tech', name: names.tech, color: ROLE_COLORS.tech },
+    { file: 'casual-hr', name: casual.hr, color: ROLE_COLORS.hr },
+    { file: 'cute-exec', name: names.exec, color: ROLE_COLORS.exec },
+    { file: 'peer-p1', name: `지원자 ${PEERS.p1.name}`, color: PEERS.p1.color },
+  ];
 
   return (
     <main className="bg-night text-white">
-      <section className="relative overflow-hidden">
+      <section className="relative overflow-hidden min-h-[640px] md:min-h-[720px] flex items-center">
+        {/* 뒷배경: 면접관 카드 두 줄이 비스듬히 오른쪽에서 왼쪽으로 흐른다 */}
+        <div className="absolute inset-0 flex flex-col justify-center gap-6 -rotate-6 scale-110 pointer-events-none" aria-hidden>
+          <Marquee cards={frontRow} className="w-40 md:w-52" duration="55s" />
+          <Marquee cards={BACK_ROW} className="w-28 md:w-36 opacity-50" duration="80s" />
+        </div>
+        {/* 글자가 읽히도록 왼쪽(모바일은 전체)을 어둡게 */}
+        <div className="absolute inset-0 pointer-events-none bg-night/75 md:bg-transparent md:bg-gradient-to-r md:from-night md:via-night/85 md:to-night/10" />
+        <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_20%_90%,#4a1530_0%,transparent_50%)] opacity-60" />
         <Navbar />
-        {/* 은은한 무대 조명 */}
-        <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_70%_40%,#3b1d5e_0%,transparent_55%),radial-gradient(ellipse_at_20%_90%,#4a1530_0%,transparent_50%)] opacity-70" />
-        <div className="relative max-w-6xl mx-auto px-6 md:px-16 pt-28 pb-16 md:pt-32 md:pb-24 grid md:grid-cols-[1fr_1.1fr] gap-12 items-center">
+        <div className="relative w-full max-w-6xl mx-auto px-6 md:px-16 pt-28 pb-16 md:pt-32 md:pb-24">
           <div className="flex flex-col gap-6 text-center md:text-left items-center md:items-start">
             <h1 className="font-display text-5xl md:text-7xl leading-[1.05]">
               합격은<br />사심입니까?
@@ -67,21 +108,6 @@ export default async function LandingPage() {
             </div>
           </div>
 
-          {/* 씹덕 모드 면접관 라인업 */}
-          <div className="flex justify-center -space-x-6 md:-space-x-8 pb-6">
-            {LINEUP.map(({ role, tilt, align }) => (
-              <div
-                key={role}
-                className={`relative w-32 md:w-48 aspect-[2/3] rounded-2xl overflow-hidden bg-neutral-900 shadow-2xl ${tilt}`}
-                style={{ boxShadow: `0 0 0 2px ${ROLE_COLORS[role]}, 0 20px 50px -10px ${ROLE_COLORS[role]}66` }}
-              >
-                <Portrait mode="cute" role={role} sizes="(max-width: 768px) 128px, 192px" fallback={null} />
-                <div className="absolute inset-x-0 bottom-0 px-3 py-2.5 bg-gradient-to-t from-black via-black/70 to-transparent pt-8">
-                  <p className={`font-display text-sm md:text-base drop-shadow ${align}`} style={{ color: ROLE_COLORS[role] }}>{names[role]}</p>
-                </div>
-              </div>
-            ))}
-          </div>
         </div>
       </section>
 
