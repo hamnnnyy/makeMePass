@@ -16,7 +16,7 @@ const LOGOS: Record<string, string> = {
   KOTRA: 'jpg', KOMSCO: 'svg',
   KODIT: 'png', KDIC: 'png', KEXIM: 'png', KOEN: 'png', KOSPO: 'png', EWP: 'png', KOWEPO: 'png', KNOC: 'png',
   KHNP: 'png', KPX: 'png', KOMIPO: 'png', SEOULMETRO: 'png', IIAC: 'png', REB: 'png', KORAIL: 'png', KEIS: 'png',
-  KRC: 'png', KECO: 'png', KISA: 'png', NIA: 'png',
+  KRC: 'png', KECO: 'png', KISA: 'png', NIA: 'png', KINFA: 'png', NPS: 'png', COMWEL: 'png',
 };
 // 흔히 부르는 줄임말로도 찾게 한다
 const ALIASES: Record<string, string> = {
