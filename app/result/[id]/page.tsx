@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { createClient } from '@/lib/supabase/server';
 import { INTERVIEWER_ROLES, ROLE_LABELS, type InterviewerRole } from '@/lib/constants/roles';
 import { ELIMINATED_LINE, OBJECTION_LINE, PASS_LINE } from '@/lib/constants/interview';
@@ -112,6 +113,22 @@ export default async function ResultPage({ params }: { params: Promise<{ id: str
         }
       />
     <div className="flex flex-col px-6 md:px-8 py-8 gap-8">
+
+      {/* 애니 모드 합격 이벤트 그림 (그림 속 인물이 애니 모드 면접관이라 그 모드에서만) */}
+      {result === 'pass' && session.mode === 'cute' && (
+        <div className="relative max-w-4xl mx-auto w-full aspect-[3/2] md:aspect-[21/9] rounded-2xl overflow-hidden">
+          <Image
+            src="/cg/pass.png?v=1"
+            alt="면접관 세 명이 박수를 치며 합격을 축하하는 장면"
+            fill
+            priority
+            sizes="(max-width: 896px) 100vw, 896px"
+            className="object-cover object-[50%_30%]"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-night/90 via-transparent to-transparent" />
+          <p className="absolute inset-x-0 bottom-5 text-center font-display text-4xl md:text-5xl drop-shadow-lg">최종 합격</p>
+        </div>
+      )}
 
       {/* 면접관 */}
       <div className="grid grid-cols-3 gap-4 items-center max-w-4xl mx-auto w-full">

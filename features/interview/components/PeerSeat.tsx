@@ -2,6 +2,7 @@
 
 import { BARS, useVoiceLevel } from '@/features/interviewer/components/InterviewerPanel';
 import { PEERS, type PeerId } from '@/lib/constants/peers';
+import { PeerFace } from '@/features/interviewer/components/Portrait';
 
 interface Props {
   peer: PeerId;
@@ -23,12 +24,8 @@ export function PeerSeat({ peer, side, speaking, getLevel }: Props) {
         boxShadow: speaking ? `0 0 calc(6px + var(--lv, 0) * 30px) ${color}` : undefined,
       }}
     >
-      <div
-        className="size-16 rounded-full flex items-center justify-center font-display text-2xl text-night"
-        style={{ background: `radial-gradient(circle at 35% 30%, #fff, ${color} 60%)` }}
-        aria-hidden
-      >
-        {name[0]}
+      <div className="relative size-20 rounded-full overflow-hidden bg-neutral-800" style={{ boxShadow: `0 0 0 2px ${color}` }} aria-hidden>
+        <PeerFace peer={peer} sizes="160px" />
       </div>
       <div className="text-center">
         <p className="font-display text-lg leading-tight">{name}</p>

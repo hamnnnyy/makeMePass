@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { ROLE_LABELS, ROLE_COLORS, ROLE_ACCENT_HEX, INTERVIEWER_ROLES, type InterviewerRole } from '@/lib/constants/roles';
 import { getPersonaNames } from '@/features/interviewer/personaNames';
-import { Portrait, moodOf } from '@/features/interviewer/components/Portrait';
+import { Portrait, PeerFace, moodOf } from '@/features/interviewer/components/Portrait';
 import type { InterviewMode } from '@/lib/constants/modes';
 import { PEERS } from '@/lib/constants/peers';
 import { VIOLATIONS, type ViolationType } from '@/lib/constants/disqualify';
@@ -289,6 +289,9 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
                     <span className="text-[11px] text-neutral-500">먼저 말한 지원자</span>
                     {(q.peer_turns ?? []).filter((t) => t.text).map((t, k) => (
                       <div key={k} className="flex gap-2 text-xs leading-relaxed">
+                        <span className="relative shrink-0 size-6 rounded-full overflow-hidden bg-neutral-800" aria-hidden>
+                          <PeerFace peer={t.peer} sizes="48px" />
+                        </span>
                         <span className="shrink-0 font-display text-sm" style={{ color: PEERS[t.peer].color }}>{PEERS[t.peer].name}</span>
                         <span className="text-neutral-400">{t.text}</span>
                       </div>

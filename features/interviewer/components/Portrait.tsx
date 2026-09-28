@@ -15,6 +15,9 @@ const FACES: Record<string, [number, number]> = {
   'cute-hr': [46, 29],
   'cute-tech': [50, 29],
   'cute-exec': [50, 26],
+  // AI 지원자 (다대다·토론·토의)
+  'peer-p1': [46, 25],
+  'peer-p2': [50, 26],
 };
 // 표정 그림 파일 이름 (예: 'cute-hr-happy', 'cute-hr-upset')
 const MOOD_PORTRAITS = new Set<string>([
@@ -43,25 +46,33 @@ interface Props {
   children?: ReactNode;   // 그림 위에 겹칠 요소
 }
 
+// 정사각 틀에서 얼굴 중심이 가운데 오도록 그림을 ZOOM 배로 키워 옮긴다 (그림 높이 = 너비 x 1.5).
+// 부모: relative + overflow-hidden + 크기
+function FaceCrop({ src, face: [x, y], sizes }: { src: string; face: [number, number]; sizes: string }) {
+  return (
+    <Image
+      src={src}
+      alt=""
+      width={1024}
+      height={1536}
+      sizes={sizes}
+      style={{ position: 'absolute', maxWidth: 'none', width: `${ZOOM * 100}%`, height: 'auto', left: `${50 - ZOOM * x}%`, top: `${50 - ZOOM * 1.5 * y}%` }}
+    />
+  );
+}
+
+// AI 지원자 얼굴 (public/personas/peer-{id}.png)
+export function PeerFace({ peer, sizes }: { peer: 'p1' | 'p2'; sizes: string }) {
+  const key = `peer-${peer}`;
+  return <FaceCrop src={`/personas/${key}.png?v=${VERSION}`} face={FACES[key]} sizes={sizes} />;
+}
+
 // 면접관 일러스트. 부모가 relative + 크기를 가져야 한다 (next/image fill).
 // 표정 그림이 없으면 기본 그림, 기본 그림도 없으면 fallback.
 export function Portrait({ mode, role, mood, face, silhouette, sizes, fallback, children }: Props) {
   const src = portraitSrc(mode, role, mood);
   if (!src) return <>{fallback}</>;
-  if (face) {
-    // 정사각 틀에서 얼굴 중심이 가운데 오도록 그림을 ZOOM 배로 키워 옮긴다 (그림 높이 = 너비 x 1.5)
-    const [x, y] = FACES[`${mode}-${role}`];
-    return (
-      <Image
-        src={src}
-        alt=""
-        width={1024}
-        height={1536}
-        sizes={sizes}
-        style={{ position: 'absolute', maxWidth: 'none', width: `${ZOOM * 100}%`, height: 'auto', left: `${50 - ZOOM * x}%`, top: `${50 - ZOOM * 1.5 * y}%` }}
-      />
-    );
-  }
+  if (face) return <FaceCrop src={src} face={FACES[`${mode}-${role}`]} sizes={sizes} />;
   return (
     <>
       <Image
