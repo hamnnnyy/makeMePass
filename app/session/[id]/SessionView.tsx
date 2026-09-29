@@ -25,6 +25,7 @@ import { PT_INTRO_LINE, PT_INTRO_LINE_EN, SIDE_EN, PT_PREP_SEC, PT_TOPIC_PREFIX,
 import { PEERS, isPeer, type PeerId, type Speaker } from '@/lib/constants/peers';
 import { getPeerTurns } from '@/features/interview/server/peerTurns.server';
 import { PeerSeat } from '@/features/interview/components/PeerSeat';
+import { SessionStatus } from '@/features/interview/components/SessionStatus';
 import type { Database } from '@/types/supabase';
 
 type Session = Database['public']['Tables']['interview_sessions']['Row'];
@@ -85,6 +86,9 @@ export function SessionView({
   const [error, setError] = useState<string | null>(null);
   const [finalLine, setFinalLine] = useState<string | null>(null);  // 면접을 끝내는 면접관의 마지막 말
   const [deltas, setDeltas] = useState<{ values: FavorState; key: number } | null>(null);
+  // 문항별 호감도 변화 합 (진행표에 표시). 새로고침하면 DB 값으로 채운다.
+  const [results, setResults] = useState<Record<string, number>>(() =>
+    Object.fromEntries(answered.map((q) => [q.id, q.hr_delta + q.tech_delta + q.exec_delta])));
   const [textMode, setTextMode] = useState(false);  // 말하기 어려울 때 텍스트로 답변
   const [answerText, setAnswerText] = useState('');
   const [ptMemo, setPtMemo] = useState('');  // PT 준비 메모 (평가에 쓰지 않음, 발표 중 참고용)
@@ -217,6 +221,7 @@ export function SessionView({
         key: Date.now(),
       });
       setFavor(r.favor);
+      setResults((m) => ({ ...m, [q.id]: r.favor.hr - favor.hr + r.favor.tech - favor.tech + r.favor.exec - favor.exec }));
 
       if (r.disqualified) return finishInterview((english ? DISQUALIFY_LINE_EN : DISQUALIFY_LINE)[r.disqualified.type], r.reactionRole);
       if (r.eliminatedBy) return finishInterview(english ? ELIMINATED_LINE_EN : ELIMINATED_LINE, r.eliminatedBy);
@@ -445,6 +450,17 @@ export function SessionView({
             <PhoneIcon className="text-white" />
           </button>
         </div>
+
+        <SessionStatus
+          questions={questions}
+          idx={idx}
+          names={names}
+          results={results}
+          kind={currentQuestion ? answerKind(currentQuestion, session.interview_type) : null}
+          answering={phase === 'answering'}
+          remaining={remaining}
+          metrics={metrics}
+        />
       </div>
     </div>
   );
