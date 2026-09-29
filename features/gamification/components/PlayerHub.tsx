@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { MODE_LABELS } from '@/lib/constants/modes';
-import { INTERVIEW_TYPE_INFO } from '@/lib/constants/interviewTypes';
+import { formatLabel } from '@/lib/constants/interviewTypes';
 import type { PlayerStats } from '../server/playerStats';
 import { LevelBar } from './LevelBar';
 
@@ -57,7 +57,7 @@ export function PlayerHub({ stats, name, title }: { stats: PlayerStats; name: st
                 <Link key={s.id} href={`/result/${s.id}`} className="flex items-center gap-3 text-sm rounded-lg hover:bg-neutral-800/60 px-2 py-1.5">
                   <span className="text-[11px] font-bold rounded-full px-2 py-0.5" style={{ color: chip.color, backgroundColor: `${chip.color}22` }}>{chip.label}</span>
                   <span>{s.organizations?.code}</span>
-                  <span className="text-neutral-400">{INTERVIEW_TYPE_INFO[s.interview_type ?? 'general'].label}</span>
+                  <span className="text-neutral-400">{formatLabel(s)}</span>
                   <span className="text-neutral-500">{MODE_LABELS[s.mode]}</span>
                   <span className="ml-auto text-xs text-neutral-600">{s.started_at.slice(0, 10).replaceAll('-', '.')}</span>
                 </Link>

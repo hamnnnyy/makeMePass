@@ -12,7 +12,7 @@ import { PageHeader } from '@/components/layout/PageHeader';
 const formatDate = (iso: string) =>
   new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul' }).format(new Date(iso)).replaceAll('-', '.');
 
-// 도감: 면접관(모드별 합격 시 3명 수집) + 칭호(업적)
+// 도감: 면접관(모드별 합격 시 들어온 면접관 수집) + 칭호(업적)
 export default async function CollectionPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const tab = (await searchParams).tab === 'titles' ? 'titles' : 'personas';
   const supabase = await createClient();

@@ -13,7 +13,7 @@ export interface CollectedPersona {
 
 export interface GamificationResult {
   newAchievements: AchievementUnlock[];
-  collected: CollectedPersona[];  // 합격 시 이 모드의 면접관 3명
+  collected: CollectedPersona[];  // 합격 시 이 모드에서 들어온 면접관
   newStreak: number;
   isNewRecord: boolean;
 }

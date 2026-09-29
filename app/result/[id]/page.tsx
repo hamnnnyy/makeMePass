@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { createClient } from '@/lib/supabase/server';
-import { INTERVIEWER_ROLES, ROLE_LABELS, type InterviewerRole } from '@/lib/constants/roles';
+import { ROLE_LABELS, type InterviewerRole } from '@/lib/constants/roles';
 import { ELIMINATED_LINE, ELIMINATED_LINE_EN, OBJECTION_LINE, OBJECTION_LINE_EN, PASS_LINE, PASS_LINE_EN } from '@/lib/constants/interview';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { DialogueBox } from '@/features/interviewer/components/DialogueBox';
@@ -12,7 +12,7 @@ import { getPersonaNames } from '@/features/interviewer/personaNames';
 import { getPlayerStats } from '@/features/gamification/server/playerStats';
 import { levelInfo, rankName, sessionXp, ORB_COLORS } from '@/features/gamification/logic/level';
 import { LevelBar } from '@/features/gamification/components/LevelBar';
-import { INTERVIEW_TYPE_INFO } from '@/lib/constants/interviewTypes';
+import { formatLabel, panelRoles } from '@/lib/constants/interviewTypes';
 import { DISQUALIFY_LINE, DISQUALIFY_LINE_EN, VIOLATIONS } from '@/lib/constants/disqualify';
 
 const TITLE = {
@@ -65,19 +65,22 @@ export default async function ResultPage({ params }: { params: Promise<{ id: str
   };
   const who = (r: InterviewerRole) => `${ROLE_LABELS[r]} ${names[r]} (${favor[r]}%)`;
 
+  // 들어온 면접관만 (면접관 1명 면접은 그 한 명)
+  const roles = panelRoles(session);
+  const solo = roles.length === 1;
   // 탈락·결렬이면 결정적인 면접관을 가운데에 크게
   const focus = result === 'fail_eliminate' || result === 'fail_veto' || result === 'fail_disqualified' ? session.veto_role : null;
   const dq = session.disqualification;
-  const lowest = INTERVIEWER_ROLES.reduce((a, b) => (favor[b] < favor[a] ? b : a));
+  const lowest = roles.reduce((a, b) => (favor[b] < favor[a] ? b : a));
   const order: InterviewerRole[] = focus
-    ? [...INTERVIEWER_ROLES.filter((r) => r !== focus).slice(0, 1), focus, ...INTERVIEWER_ROLES.filter((r) => r !== focus).slice(1)]
-    : [...INTERVIEWER_ROLES];
+    ? [...roles.filter((r) => r !== focus).slice(0, 1), focus, ...roles.filter((r) => r !== focus).slice(1)]
+    : roles;
 
-  // 영어면접은 면접관 마지막 대사도 영어
+  // 영어로 진행한 면접은 면접관 마지막 대사도 영어
   const en = session.language === 'en';
   const line: [InterviewerRole, string] | null =
     abandoned ? null
-    : result === 'pass' ? ['hr', en ? PASS_LINE_EN : PASS_LINE]
+    : result === 'pass' ? [solo ? roles[0] : 'hr', en ? PASS_LINE_EN : PASS_LINE]
     : result === 'fail_eliminate' ? [focus ?? lowest, en ? ELIMINATED_LINE_EN : ELIMINATED_LINE]
     : result === 'fail_disqualified' && dq ? [dq.role, (en ? DISQUALIFY_LINE_EN : DISQUALIFY_LINE)[dq.type]]
     : [focus ?? lowest, (en ? OBJECTION_LINE_EN : OBJECTION_LINE)[focus ?? lowest]];
@@ -97,8 +100,8 @@ export default async function ResultPage({ params }: { params: Promise<{ id: str
   const newColors = ORB_COLORS.filter((c) => c.level > before.level && c.level <= player.level);
 
   const pass = org?.pass_threshold ?? 60;
-  const pro = INTERVIEWER_ROLES.filter((r) => favor[r] >= pass);
-  const con = INTERVIEWER_ROLES.filter((r) => favor[r] < pass);
+  const pro = roles.filter((r) => favor[r] >= pass);
+  const con = roles.filter((r) => favor[r] < pass);
   // 탈락하면 면접이 바로 끝나므로 마지막 답변이 탈락 문항
   const elimIdx = answered.length - 1;
   const elimQ = answered[elimIdx];
@@ -110,14 +113,14 @@ export default async function ResultPage({ params }: { params: Promise<{ id: str
         back={{ href: '/', label: '홈' }}
         right={
           <span className="text-xs md:text-sm text-neutral-400 text-right">
-            {org?.code} · {INTERVIEW_TYPE_INFO[session.interview_type ?? 'general'].label} · {formatDate(session.started_at)}
+            {org?.code} · {formatLabel(session)} · {formatDate(session.started_at)}
           </span>
         }
       />
     <div className="flex flex-col px-6 md:px-8 py-8 gap-8">
 
-      {/* 애니 모드 합격 이벤트 그림 (그림 속 인물이 애니 모드 면접관이라 그 모드에서만) */}
-      {result === 'pass' && session.mode === 'cute' && (
+      {/* 애니 모드 합격 이벤트 그림 (그림 속 인물이 애니 모드 면접관 세 명이라 그 모드의 3인 면접에서만) */}
+      {result === 'pass' && session.mode === 'cute' && !solo && (
         <div className="relative max-w-4xl mx-auto w-full aspect-[3/2] md:aspect-[21/9] rounded-2xl overflow-hidden">
           <Image
             src="/cg/pass.png?v=1"
@@ -133,7 +136,7 @@ export default async function ResultPage({ params }: { params: Promise<{ id: str
       )}
 
       {/* 면접관 */}
-      <div className="grid grid-cols-3 gap-4 items-center max-w-4xl mx-auto w-full">
+      <div className={solo ? 'grid grid-cols-1 max-w-xs mx-auto w-full' : 'grid grid-cols-3 gap-4 items-center max-w-4xl mx-auto w-full'}>
         {order.map((r) => (
           <InterviewerPanel
             key={r}
@@ -187,7 +190,7 @@ export default async function ResultPage({ params }: { params: Promise<{ id: str
         ) : (
           <>
             <h2 className="text-lg font-semibold">
-              {result === 'pass' ? '만장일치 합격' : pro.length ? `${pro.length} 대 ${con.length} 결렬` : '전원 불합격 판정'}
+              {result === 'pass' ? (solo ? '합격' : '만장일치 합격') : solo ? '합격선 미달' : pro.length ? `${pro.length} 대 ${con.length} 결렬` : '전원 불합격 판정'}
             </h2>
             <p className="text-xs text-neutral-500">{stats}</p>
             {result !== 'pass' && (
@@ -254,7 +257,7 @@ export default async function ResultPage({ params }: { params: Promise<{ id: str
         </div>
       )}
 
-      {/* 도감: 합격하면 이 모드의 면접관 3명 수집 */}
+      {/* 도감: 합격하면 이 모드의 면접관 수집 (면접관 1명 면접은 그 한 명) */}
       {gamification.collected.length > 0 && (
         <div className="max-w-md mx-auto w-full flex flex-col gap-3">
           <div className="flex justify-between items-center">
@@ -263,7 +266,7 @@ export default async function ResultPage({ params }: { params: Promise<{ id: str
             </p>
             <Link href="/collection" className="text-xs text-pink-400 hover:text-pink-300">도감 보기 →</Link>
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className={gamification.collected.length === 1 ? 'grid grid-cols-1 max-w-[10rem] mx-auto w-full' : 'grid grid-cols-3 gap-3'}>
             {gamification.collected.map((c) => (
               <PersonaCard key={c.role} mode={session.mode} role={c.role} name={c.label_ko} collected isNew={c.isNew} />
             ))}

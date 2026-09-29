@@ -3,7 +3,7 @@
 import { generateWithFallback } from '@/lib/gemini/client';
 import { MODELS } from '@/lib/gemini/models';
 import { createClient } from '@/lib/supabase/server';
-import { INTERVIEW_TYPE_INFO, SIDE_EN } from '@/lib/constants/interviewTypes';
+import { INTERVIEW_TYPE_INFO, PEER_REQUIRED, SIDE_EN } from '@/lib/constants/interviewTypes';
 import { PEERS, type PeerTurn } from '@/lib/constants/peers';
 import { orgBrief } from '../logic/orgBrief';
 import { stripNames } from '../logic/peerText';
@@ -49,6 +49,8 @@ export async function getPeerTurns(sessionQuestionId: string): Promise<Required<
   const org = session.organizations as unknown as { name_ko: string; description: string | null; core_values: unknown; talent_profile: unknown };
   const setup = session.group_setup;
   const type = session.interview_type;
+  // 같은 질문에 차례로 답하는 다대다 (토론·토의는 정해진 차례에 발언)
+  const qa = !PEER_REQUIRED.includes(type);
   const english = session.language === 'en';
   const side = (s?: string) => (english && s ? `${s}(${SIDE_EN[s] ?? s})` : s);
 
@@ -60,14 +62,14 @@ export async function getPeerTurns(sessionQuestionId: string): Promise<Required<
 
   const turns = plan.map((t) => ({
     ...t,
-    guide: type === 'group' ? `${t.intent} — 이번에는 ${pick(LEVELS)}` : t.intent,
+    guide: qa ? `${t.intent} — 이번에는 ${pick(LEVELS)}` : t.intent,
   }));
 
-  const prompt = `${orgBrief(org)}\n\n위 기관 신입 공채 ${INTERVIEW_TYPE_INFO[type].label}에 함께 참여한 가상 지원자들의 발언을 쓰세요. 기관 정보를 아는 지원자답게 말하되, 지원자마다 이해 수준은 다르다.
+  const prompt = `${orgBrief(org)}\n\n위 기관 신입 공채 ${INTERVIEW_TYPE_INFO[type].label}${qa ? ' 다대다 면접' : ''}에 함께 참여한 가상 지원자들의 발언을 쓰세요. 기관 정보를 아는 지원자답게 말하되, 지원자마다 이해 수준은 다르다.
 ${english
-  ? `영어로 진행하는 면접이다. 발언은 실제 사람이 말하듯 자연스럽고 정중한 영어로 쓰고, 한 발언은 ${type === 'group' ? '20초 안팎(40~55단어)' : '15초 안팎(30~40단어)'}을 넘기지 않는다.
+  ? `영어로 진행하는 면접이다. 발언은 실제 사람이 말하듯 자연스럽고 정중한 영어로 쓰고, 한 발언은 ${qa ? '20초 안팎(40~55단어)' : '15초 안팎(30~40단어)'}을 넘기지 않는다.
 누구도 이름을 말하지 않는다. 다른 사람은 ${type === 'debate' ? "'the affirmative side'처럼 편으로" : "'the previous candidate'처럼"} 부른다.`
-  : `실제 사람이 말하듯 구어체 존댓말로, 한 발언은 ${type === 'group' ? '20초 안팎(100~170자)' : '15초 안팎(70~130자)'}이고 이 글자 수를 넘기지 않는다.
+  : `실제 사람이 말하듯 구어체 존댓말로, 한 발언은 ${qa ? '20초 안팎(100~170자)' : '15초 안팎(70~130자)'}이고 이 글자 수를 넘기지 않는다.
 누구도 이름을 말하지 않는다. 다른 사람은 ${type === 'debate' ? "'찬성 측 지원자님'처럼 편으로" : "'앞 지원자님'처럼"} 부르고, 평가받는 실제 지원자는 '지원자님'이라고 부른다.`}
 
 [지원자 성격]

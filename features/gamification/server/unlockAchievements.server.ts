@@ -5,6 +5,7 @@ import { createClient as createServiceClient } from '@/lib/supabase/service-role
 import { checkAchievements } from '../logic/achievementCheck';
 import { computeNewStreak } from '../logic/streakUpdater';
 import type { GamificationResult } from '../types';
+import { panelRoles } from '@/lib/constants/interviewTypes';
 
 export async function unlockAchievements(sessionId: string): Promise<GamificationResult> {
   const supabase = await createClient();
@@ -15,7 +16,7 @@ export async function unlockAchievements(sessionId: string): Promise<Gamificatio
   // 이번 세션 정보
   const { data: session } = await supabase
     .from('interview_sessions')
-    .select('result, mode, ended_at, hr_final_score, tech_final_score, exec_final_score')
+    .select('result, mode, ended_at, interview_type, panel_size, hr_final_score, tech_final_score, exec_final_score')
     .eq('id', sessionId)
     .single();
 
@@ -36,11 +37,9 @@ export async function unlockAchievements(sessionId: string): Promise<Gamificatio
     const code = s.organizations?.code;
     if (code) passCountByOrg[code] = (passCountByOrg[code] ?? 0) + 1;
   }
-  const minScore = Math.min(
-    session.hr_final_score ?? 50,
-    session.tech_final_score ?? 50,
-    session.exec_final_score ?? 50,
-  );
+  // 들어온 면접관 중 가장 낮은 최종 호감도
+  const roles = panelRoles(session);
+  const minScore = Math.min(...roles.map((r) => session[`${r}_final_score`] ?? 50));
 
   // 스트릭 조회/업데이트
   const { data: streak } = await supabase
@@ -99,14 +98,15 @@ export async function unlockAchievements(sessionId: string): Promise<Gamificatio
     .eq('user_id', user.id)
     .eq('unlock_session_id', sessionId);
 
-  // 도감: 합격하면 이 모드의 면접관 3명을 수집. 이미 있으면 그대로 두고,
+  // 도감: 합격하면 이 모드의 면접관 중 들어온 면접관(3명 또는 1명)을 수집. 이미 있으면 그대로 두고,
   // 세션 종료 이후에 들어온 것만 NEW 로 표시해서 다시 렌더해도 결과가 같다.
   let collected: GamificationResult['collected'] = [];
   if (session.result === 'pass') {
     const { data: personas } = await admin
       .from('interviewer_personas')
       .select('id, role, label_ko')
-      .eq('mode', session.mode);
+      .eq('mode', session.mode)
+      .in('role', roles);
     const ids = (personas ?? []).map((p) => p.id);
     await admin.from('user_unlocked_personas').upsert(
       ids.map((persona_id) => ({ user_id: user.id, persona_id })),

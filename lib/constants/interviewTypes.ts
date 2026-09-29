@@ -1,6 +1,7 @@
 import type { QuestionCategory } from '@/types/supabase';
+import { INTERVIEWER_ROLES, type InterviewerRole } from './roles';
 
-export const INTERVIEW_TYPES = ['general', 'personality', 'job', 'executive', 'pt', 'group', 'debate', 'discussion', 'english'] as const;
+export const INTERVIEW_TYPES = ['general', 'personality', 'job', 'executive', 'pt', 'debate', 'discussion'] as const;
 export type InterviewType = (typeof INTERVIEW_TYPES)[number];
 
 export const INTERVIEW_TYPE_INFO: Record<InterviewType, {
@@ -39,23 +40,11 @@ export const INTERVIEW_TYPE_INFO: Record<InterviewType, {
     categories: null,
     focus: 'PT면접: 문제 정의, 논리 구조(서론-본론-결론), 근거와 실현 가능성, 시간 배분과 발표 전달력을 본다. 꼬리질문은 발표의 허점·근거·실행 방안을 파고든다.',
   },
-  group: {
-    label: '다대다',
-    desc: 'AI 지원자 2명과 같은 질문에 차례로 답변',
-    categories: null,
-    focus: '다대다 면접: 같은 질문에 답한 다른 지원자와 비교해 차별성, 구체성, 기관 이해도를 본다. 앞 지원자 답변을 되풀이하면 감점한다.',
-  },
   debate: {
     label: '토론면접',
     desc: '찬반 주제로 AI 지원자와 입론·반론·최종 발언',
     categories: null,
     focus: '토론면접: 주장의 논리와 근거, 상대 주장을 정확히 짚은 반론, 감정적이지 않은 태도, 상대 발언 경청을 본다. 이기는 것보다 설득 과정과 태도가 중요하다.',
-  },
-  english: {
-    label: '영어면접',
-    desc: '영어로 묻고 영어로 답하는 면접, 피드백은 한국어',
-    categories: null,
-    focus: '영어면접: 답변 내용과 함께 영어 전달력(발음, 유창성, 문법, 어휘의 정확성과 다양성)을 본다. 한국어로 답하면 내용 점수를 크게 깎는다. 짧더라도 논리적으로 완결된 답변을 높이 평가한다.',
   },
   discussion: {
     label: '토의면접',
@@ -65,8 +54,29 @@ export const INTERVIEW_TYPE_INFO: Record<InterviewType, {
   },
 };
 
-// AI 지원자가 함께하는 유형
-export const PEER_TYPES: readonly InterviewType[] = ['group', 'debate', 'discussion'];
+// 면접 형식은 유형과 따로 고른다: AI 지원자 참여, 면접관 수, 언어
+// AI 지원자와 함께 볼 수 있는 유형 / 항상 함께하는 유형 (PT 는 혼자 발표)
+export const PEER_OPTIONAL: readonly InterviewType[] = ['general', 'personality', 'job', 'executive'];
+export const PEER_REQUIRED: readonly InterviewType[] = ['debate', 'discussion'];
+// 면접관 1명일 때 들어오는 면접관
+export const SOLO_ROLE: Record<InterviewType, InterviewerRole> = {
+  general: 'exec', personality: 'hr', job: 'tech', executive: 'exec', pt: 'exec', debate: 'exec', discussion: 'exec',
+};
+export const panelRoles = (s: { panel_size: number; interview_type: InterviewType }): InterviewerRole[] =>
+  s.panel_size === 1 ? [SOLO_ROLE[s.interview_type]] : [...INTERVIEWER_ROLES];
+// 첫인사·마무리처럼 면접을 이끄는 면접관
+export const leadRole = (roles: InterviewerRole[]): InterviewerRole => (roles.includes('exec') ? 'exec' : roles[0]);
+
+// '임원면접 · 다대다 · 면접관 1명 · 영어' 처럼 유형과 형식을 한 줄로
+export function formatLabel(s: { interview_type: InterviewType; with_peers: boolean; panel_size: number; language: string }) {
+  return [
+    INTERVIEW_TYPE_INFO[s.interview_type]?.label ?? s.interview_type,
+    s.with_peers && !PEER_REQUIRED.includes(s.interview_type) && '다대다',
+    s.panel_size === 1 && '면접관 1명',
+    s.language === 'en' && '영어',
+  ].filter(Boolean).join(' · ');
+}
+
 // 차례가 정해진 유형 (질문 수·자소서·꼬리질문 없음)
 export const TURN_TYPES: readonly InterviewType[] = ['debate', 'discussion', 'pt'];
 
@@ -76,6 +86,7 @@ export const PT_FOLLOW_UPS = 3;
 // PT 주제 문항은 question_text 가 이 접두어로 시작한다
 export const PT_TOPIC_PREFIX = '[PT 주제] ';
 export const PT_INTRO_LINE = 'PT 면접을 시작하겠습니다. 화면의 주제를 확인하시고, 준비가 끝나면 발표를 시작해 주세요.';
+export const PT_INTRO_LINE_EN = 'Let us begin the presentation interview. Please review the topic on the screen and start your presentation when you are ready.';
 
 // 토론 편은 한국어로 저장하고, 영어로 진행할 때만 영어로 부른다
 export const SIDE_EN: Record<string, string> = { 찬성: 'affirmative', 반대: 'negative' };

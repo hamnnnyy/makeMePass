@@ -4,11 +4,15 @@ import type { InterviewerRole } from './roles';
 export const INTRO_QUESTION = '1분 동안 자기소개 부탁드립니다.';
 export const CLOSING_QUESTION = '마지막으로 하고 싶은 말씀이 있으면 해주세요.';
 
-// 영어면접 고정 문항·대사
+// 영어 진행 고정 문항·대사
 export const INTRO_QUESTION_EN = 'Please introduce yourself in about one minute.';
 export const CLOSING_QUESTION_EN = 'Is there anything else you would like to tell us before we finish?';
+// 다대다 마무리 (실제 기출): 지원자들이 손을 들고 먼저 나서서 마무리한다
+export const GROUP_CLOSING_QUESTION = '이 면접을 마무리할 수 있는 분, 손 들고 한번 말씀해 보시겠어요?';
+export const GROUP_CLOSING_QUESTION_EN = 'Who would like to raise their hand and wrap up this interview for us?';
 export const isIntroQuestion = (text: string) => text === INTRO_QUESTION || text === INTRO_QUESTION_EN;
-export const isClosingQuestion = (text: string) => text === CLOSING_QUESTION || text === CLOSING_QUESTION_EN;
+export const isClosingQuestion = (text: string) =>
+  [CLOSING_QUESTION, CLOSING_QUESTION_EN, GROUP_CLOSING_QUESTION, GROUP_CLOSING_QUESTION_EN].includes(text);
 
 // session_questions.sequence 는 정수라 10 간격으로 두고 꼬리질문을 +5 에 끼운다
 export const SEQUENCE_STEP = 10;

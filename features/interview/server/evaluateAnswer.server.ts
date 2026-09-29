@@ -5,14 +5,14 @@ import { MODELS } from '@/lib/gemini/models';
 import { createClient } from '@/lib/supabase/server';
 import { uploadSessionAudio } from '@/lib/storage/uploadBlob';
 import { FOLLOW_UP_OFFSET, MODE_TONE, isClosingQuestion, isIntroQuestion, type AnswerKind } from '@/lib/constants/interview';
-import { INTERVIEW_TYPE_INFO, PT_FOLLOW_UPS, PT_TOPIC_PREFIX } from '@/lib/constants/interviewTypes';
+import { INTERVIEW_TYPE_INFO, PEER_REQUIRED, PT_FOLLOW_UPS, PT_TOPIC_PREFIX, panelRoles } from '@/lib/constants/interviewTypes';
 import { INTERVIEWER_ROLES, type InterviewerRole } from '@/lib/constants/roles';
 import { PEERS } from '@/lib/constants/peers';
 import { VIOLATIONS, type ViolationType } from '@/lib/constants/disqualify';
 import type { InterviewMode } from '@/lib/constants/modes';
 import type { NonVerbalSummary } from '@/features/mediapipe/logic/nonVerbal';
 import type { AudioStats } from '../logic/audio';
-import { scoreNonVerbal, scoreTiming, finalDeltas, applyDeltas, judge, withOrgFit, type RoleValues } from '../logic/scoring';
+import { scoreNonVerbal, scoreTiming, finalDeltas, applyDeltas, judge, onlyRoles, withOrgFit, type RoleValues } from '../logic/scoring';
 import { orgBrief } from '../logic/orgBrief';
 
 export type FavorState = RoleValues;
@@ -132,7 +132,7 @@ async function storedResult(
 ): Promise<EvaluateResult> {
   const [{ data: session }, { data: fu }] = await Promise.all([
     supabase.from('interview_sessions')
-      .select('result, disqualification, organizations(pass_threshold, eliminate_threshold)')
+      .select('result, disqualification, interview_type, panel_size, organizations(pass_threshold, eliminate_threshold)')
       .eq('id', sq.session_id).single(),
     supabase.from('session_questions')
       .select('id, question_text, asked_by_role')
@@ -143,7 +143,7 @@ async function storedResult(
   const role = sq.asked_by_role as InterviewerRole;
   const dq = session?.result === 'fail_disqualified' ? session.disqualification : null;
   const org = session?.organizations as unknown as { pass_threshold: number; eliminate_threshold: number } | null;
-  const verdict = org ? judge(favor, org) : null;
+  const verdict = org && session ? judge(favor, org, panelRoles(session)) : null;
   return {
     favor,
     reaction: '',
@@ -214,6 +214,9 @@ export async function evaluateAnswer(sessionQuestionId: string, formData: FormDa
     : '';
 
   const role = sq.asked_by_role as InterviewerRole;
+  // 면접관 1명이면 그 면접관 혼자 모든 관점을 본다
+  const roles = panelRoles(session);
+  const solo = roles.length === 1 ? roles[0] : null;
   const isClosing = isClosingQuestion(sq.question_text);
   const english = session.language === 'en';
   const isPt = session.interview_type === 'pt';
@@ -235,17 +238,17 @@ export async function evaluateAnswer(sessionQuestionId: string, formData: FormDa
     .map((h, i) => `Q${i + 1}. ${h.question_text}\n${h.peer_turns?.length ? `${peerLine(h.peer_turns)}\n` : ''}A${i + 1}. ${h.transcript || '(무응답)'}`)
     .join('\n');
 
-  const prompt = `당신은 ${org.name_ko} 신입 채용 면접의 평가위원 3명(hr, tech, exec)입니다.
+  const prompt = `당신은 ${org.name_ko} 신입 채용 면접의 ${solo ? `면접관 1명(${solo})입니다. 인성·직무·가치관을 혼자 모두 봅니다.` : '평가위원 3명(hr, tech, exec)입니다.'}
 ${isText
   ? '지원자가 이번 답변을 텍스트로 입력했습니다. 내용만 평가하고, transcript 에는 입력문을 그대로, filler_count 는 0, score_fluency 는 0 으로 두세요.'
   : '첨부된 음성은 지원자의 답변입니다. 음성을 직접 듣고 내용과 전달력을 함께 평가하세요.'}
 
 ${orgBrief(org)}
 ${coverLetter ? `[지원자 자기소개서 요약] ${JSON.stringify(coverLetter)}` : ''}
-[면접 유형] ${INTERVIEW_TYPE_INFO[session.interview_type ?? 'general'].focus}
+[면접 유형] ${INTERVIEW_TYPE_INFO[session.interview_type ?? 'general'].focus}${session.with_peers && !PEER_REQUIRED.includes(session.interview_type) ? '\n다대다 면접: 같은 질문에 답한 다른 지원자와 비교해 차별성, 구체성, 기관 이해도를 본다. 앞 지원자 답변을 되풀이하면 감점한다.' : ''}
 ${session.group_setup ? `[${session.interview_type === 'debate' ? '논제' : '과제'}] ${session.group_setup.topic}${session.group_setup.userSide ? `\n지원자(평가 대상)는 ${session.group_setup.userSide} 측, 다른 지원자들은 ${session.group_setup.peerSide} 측` : ''}` : ''}
 [면접관 말투] ${MODE_TONE[session.mode as InterviewMode]}
-${(personas ?? []).filter((p) => p.mode === session.mode)
+${(personas ?? []).filter((p) => p.mode === session.mode && roles.includes(p.role as InterviewerRole))
   .map((p) => `- ${p.role}: ${p.label_ko}${p.position_ko ? `(${p.position_ko})` : ''}. ${p.tone_description ?? ''}`).join('\n')}
 
 [이전 문답]
@@ -262,8 +265,9 @@ ${isText ? `${nvLine}\n[지원자 답변(텍스트 입력)]\n${answerText}` : `$
 평가 규칙:
 - 실제 공기업 면접처럼 엄격하게. 평범한 답변은 deltas 0 근처, 인상적이면 +, 부실하면 -.
 - 이 기관의 면접이다. 면접관마다 기관 특징을 기준으로 본다: exec 는 인재상·핵심가치·미션 부합, tech 는 주요 사업과 최근 현안 이해, hr 는 조직문화에 맞는 태도. 어느 기관에나 할 수 있는 일반론은 가점하지 않는다.
-- 답변이 없거나 질문과 무관하면 score_content 0~20, deltas는 -8 이하.${english ? `
-- 영어로 진행하는 면접이다. 지원자는 영어로 답해야 하고, 한국어로 답하면 score_content 를 크게 깎는다.
+- 답변이 없거나 질문과 무관하면 score_content 0~20, deltas는 -8 이하.${solo ? `
+- 면접관은 ${solo} 한 명뿐이다. deltas·delta_reasons·inner_voices 의 ${solo} 항목에 이 면접관의 종합 판단(인성·직무·가치관 모두)을 쓰고, 나머지 항목은 0과 빈 문자열로 둔다. follow_up.role 은 ${solo}.` : ''}${english ? `
+- 영어로 진행하는 면접이다. 답변 내용과 함께 영어 전달력을 본다. 지원자는 영어로 답해야 하고, 한국어로 답하면 score_content 를 크게 깎는다. 짧더라도 논리적으로 완결된 답변을 높이 평가한다.
 - score_fluency 는 영어 발음·유창성·문법·어휘의 정확성과 다양성 기준으로 매긴다.
 - reaction 과 follow_up.question 은 영어 면접관이 말하듯 자연스러운 영어로 쓴다 (reaction 은 "I see.", "Thank you for your answer."처럼 8단어 이내 짧은 맞장구, 질문은 20단어 이내).
 - strengths·improvement·delta_reasons·inner_voices·org_fit_reason·violation.detail 은 한국어로 쓰고, improvement 에는 더 나은 영어 표현 예시를 영어 문장 하나로 덧붙인다.` : ''}
@@ -302,9 +306,9 @@ ${isText ? `${nvLine}\n[지원자 답변(텍스트 입력)]\n${answerText}` : `$
   // 텍스트 답변도 표정·자세는 평가한다 (타이핑하느라 아래를 보므로 시선은 제외)
   const nvScores = hasMeta ? { ...nvAll, eyeContact: isText ? null : nvAll.eyeContact } : null;
   const timing = isText ? null : scoreTiming(audio, kind);
-  const deltas = nvScores
+  const deltas = onlyRoles(nvScores
     ? finalDeltas(verbalDeltas, nvScores, timing)
-    : { hr: Math.round(verbalDeltas.hr), tech: Math.round(verbalDeltas.tech), exec: Math.round(verbalDeltas.exec) };
+    : { hr: Math.round(verbalDeltas.hr), tech: Math.round(verbalDeltas.tech), exec: Math.round(verbalDeltas.exec) }, roles);
   const favor = applyDeltas(favorBefore, deltas);
 
   // 녹음 저장은 평가와 동시에 진행 (실패해도 평가는 계속)
@@ -363,7 +367,7 @@ ${isText ? `${nvLine}\n[지원자 답변(텍스트 입력)]\n${answerText}` : `$
     return { favor, reaction: '', reactionRole: role, followUp: null, eliminatedBy: null, disqualified };
   }
 
-  const verdict = judge(favor, org);
+  const verdict = judge(favor, org, roles);
   const eliminated = verdict.result === 'fail_eliminate';
   // FK 가 questions(id) 라서 질문 은행 문항일 때만 기록된다. 결과 화면은 마지막 답변을 탈락 문항으로 본다.
   if (eliminated && sq.question_id) {
@@ -375,7 +379,7 @@ ${isText ? `${nvLine}\n[지원자 답변(텍스트 입력)]\n${answerText}` : `$
   let followUp: EvaluateResult['followUp'] = null;
   const fuText = v.follow_up?.question?.trim();
   if (!eliminated && v.follow_up?.ask && fuText && allowFollowUp) {
-    const fuRole = INTERVIEWER_ROLES.includes(v.follow_up.role) ? v.follow_up.role : role;
+    const fuRole = solo ?? (INTERVIEWER_ROLES.includes(v.follow_up.role) ? v.follow_up.role : role);
     const { data: inserted } = await supabase
       .from('session_questions')
       .insert({

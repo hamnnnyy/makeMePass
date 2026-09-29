@@ -5,10 +5,10 @@ import { createClient } from '@/lib/supabase/server';
 import { generateWithFallback } from '@/lib/gemini/client';
 import { MODELS } from '@/lib/gemini/models';
 import { sampleN } from '@/lib/utils/sample';
-import { CLOSING_QUESTION, CLOSING_QUESTION_EN, INTRO_QUESTION, INTRO_QUESTION_EN, SEQUENCE_STEP } from '@/lib/constants/interview';
+import { CLOSING_QUESTION, CLOSING_QUESTION_EN, GROUP_CLOSING_QUESTION, GROUP_CLOSING_QUESTION_EN, INTRO_QUESTION, INTRO_QUESTION_EN, SEQUENCE_STEP } from '@/lib/constants/interview';
 import { INTERVIEWER_ROLES, type InterviewerRole } from '@/lib/constants/roles';
 import type { InterviewMode } from '@/lib/constants/modes';
-import { INTERVIEW_TYPES, INTERVIEW_TYPE_INFO, PEER_TYPES, PT_TOPIC_PREFIX, TURN_TYPES, type InterviewType } from '@/lib/constants/interviewTypes';
+import { INTERVIEW_TYPES, INTERVIEW_TYPE_INFO, PEER_OPTIONAL, PEER_REQUIRED, PT_TOPIC_PREFIX, SOLO_ROLE, TURN_TYPES, type InterviewType } from '@/lib/constants/interviewTypes';
 import type { PeerId, PeerTurn } from '@/lib/constants/peers';
 import { orgBrief } from '../logic/orgBrief';
 
@@ -19,13 +19,13 @@ const MAX_PDF_BYTES = 5 * 1024 * 1024;
 const DAILY_SESSION_LIMIT = 10;
 
 // 자소서 PDF를 요약하고, 자소서 기반 질문을 만든다
-async function readCoverLetter(file: File, orgName: string, count: number) {
+async function readCoverLetter(file: File, orgName: string, count: number, english: boolean) {
   const res = await generateWithFallback(MODELS.evaluation, {
     contents: [{
       role: 'user',
       parts: [
         { inlineData: { mimeType: 'application/pdf', data: Buffer.from(await file.arrayBuffer()).toString('base64') } },
-        { text: `${orgName} 신입 공채 지원자의 자기소개서입니다. 문항별 핵심 내용을 요약하고, 실제 면접관이 이 자소서를 보고 물어볼 질문 ${count}개를 만드세요. 질문은 자소서의 구체적 경험·수치·주장을 검증하는 구어체 한 문장(50자 이내).` },
+        { text: `${orgName} 신입 공채 지원자의 자기소개서입니다. 문항별 핵심 내용을 요약하고, 실제 면접관이 이 자소서를 보고 물어볼 질문 ${count}개를 만드세요. 질문은 자소서의 구체적 경험·수치·주장을 검증하는 ${english ? '자연스러운 영어 한 문장(20단어 이내). 요약은 한국어로' : '구어체 한 문장(50자 이내)'}.` },
       ],
     }],
     config: {
@@ -57,9 +57,9 @@ async function readCoverLetter(file: File, orgName: string, count: number) {
 }
 
 // PT면접 주제: 기관 업무와 연결된 실제형 과제
-async function makePtTopic(brief: string): Promise<string> {
+async function makePtTopic(brief: string, english: boolean): Promise<string> {
   const res = await generateWithFallback(MODELS.evaluation, {
-    contents: `${brief}\n\n위 기관 신입 공채 PT면접 주제를 하나 만드세요. 기관의 주요 사업·최근 현안과 연결되고, 3분 발표로 해결 방안을 제시할 수 있는 과제여야 합니다.`,
+    contents: `${brief}\n\n위 기관 신입 공채 PT면접 주제를 하나 만드세요. 기관의 주요 사업·최근 현안과 연결되고, 3분 발표로 해결 방안을 제시할 수 있는 과제여야 합니다.${english ? ' 영어로 진행하는 면접이므로 title·background·task 는 자연스러운 영어로 쓰세요.' : ''}`,
     config: {
       responseMimeType: 'application/json',
       responseJsonSchema: {
@@ -75,7 +75,9 @@ async function makePtTopic(brief: string): Promise<string> {
   });
   const t = JSON.parse(res.text ?? '{}') as { title?: string; background?: string; task?: string };
   if (!t.title) throw new Error('PT 주제를 만들지 못했습니다.');
-  return `${PT_TOPIC_PREFIX}${t.title}\n배경: ${t.background ?? ''}\n과제: ${t.task ?? ''}`;
+  return english
+    ? `${PT_TOPIC_PREFIX}${t.title}\nBackground: ${t.background ?? ''}\nTask: ${t.task ?? ''}`
+    : `${PT_TOPIC_PREFIX}${t.title}\n배경: ${t.background ?? ''}\n과제: ${t.task ?? ''}`;
 }
 
 export default async function createSession(
@@ -84,7 +86,8 @@ export default async function createSession(
   interviewType: InterviewType,
   questionCount: number,
   coverLetterFile: File | null,
-  inEnglish = false,  // 다대다·토론·토의를 영어로 진행
+  // 면접 형식: AI 지원자 참여, 면접관 수, 영어 진행
+  format: { withPeers: boolean; panelSize: 1 | 3; english: boolean } = { withPeers: false, panelSize: 3, english: false },
 ) {
   const supabase = await createClient();
 
@@ -200,7 +203,7 @@ function discussionPlan(english: boolean): Planned[] {
   const categories = INTERVIEW_TYPE_INFO[type].categories;
 
   // 공통 질문 + question_organizations 로 이 기관에 연결된 질문. 영어로 진행하면 영어 질문만, 아니면 한국어 질문만.
-  const english = type === 'english' || (inEnglish && PEER_TYPES.includes(type));
+  const english = format.english;
   const language = english ? 'en' : 'ko';
   const [{ data: general }, { data: linkedRows }] = await Promise.all([
     supabase.from('questions').select('id, text, target_role, category').eq('is_general', true).eq('language', language),
@@ -215,11 +218,10 @@ function discussionPlan(english: boolean): Planned[] {
   // 실제 면접 순서: 1분 자기소개 → (자소서 질문) → 본 질문 → 마지막 한마디
   let coverLetterId: string | null = null;
   let clQuestions: Planned[] = [];
-  // 자소서 질문은 한국어로 만들어져서 영어면접에는 쓰지 않는다
-  if (!TURN_TYPES.includes(type) && !english && coverLetterFile && coverLetterFile.size > 0) {
+  if (!TURN_TYPES.includes(type) && coverLetterFile && coverLetterFile.size > 0) {
     if (coverLetterFile.type !== 'application/pdf') throw new Error('자기소개서는 PDF만 지원합니다.');
     if (coverLetterFile.size > MAX_PDF_BYTES) throw new Error('자기소개서는 5MB 이하만 가능합니다.');
-    const cl = await readCoverLetter(coverLetterFile, org.name_ko, Math.min(3, Math.floor((count - 1) / 2)));
+    const cl = await readCoverLetter(coverLetterFile, org.name_ko, Math.min(3, Math.floor((count - 1) / 2)), english);
     const { data: saved } = await supabase
       .from('cover_letters')
       .insert({ user_id: user.id, organization_id: org.id, position_code: null, items: cl.summary, is_active: true })
@@ -232,15 +234,20 @@ function discussionPlan(english: boolean): Planned[] {
   const mainCount = count - 1 - clQuestions.length;
   // 다대다: 자기소개·본 질문에 AI 지원자 둘이 먼저 답한다 (순서는 번갈아). 자소서 질문·마지막 한마디는 사용자만.
   const both = (i: number): PeerTurn[] => (i % 2 ? [turn('p2', '답변'), turn('p1', '답변')] : [turn('p1', '답변'), turn('p2', '답변')]);
-  const withPeers = type === 'group';
+  const withPeers = PEER_REQUIRED.includes(type) || (format.withPeers && PEER_OPTIONAL.includes(type));
+  const panelSize = format.panelSize === 1 ? 1 : 3;
 
   let groupSetup: { topic: string; userSide?: string; peerSide?: string } | null = null;
   let planned: Planned[];
   if (type === 'pt') {
     // PT: 주제 발표 1개 + (발표에 대한 꼬리질문은 답변 평가 때 생성) + 마지막 한마디
     planned = [
-      { text: await makePtTopic(orgBrief(org)), role: 'exec', questionId: null },
-      { text: CLOSING_QUESTION, role: 'exec', questionId: null },
+      { text: await makePtTopic(orgBrief(org), english), role: 'exec', questionId: null },
+      withPeers
+        // 다대다는 손 들고 먼저 나서는 AI 지원자 한 명 뒤에 내 차례
+        ? { text: english ? GROUP_CLOSING_QUESTION_EN : GROUP_CLOSING_QUESTION, role: 'exec', questionId: null,
+            peers: [turn(Math.random() < 0.5 ? 'p1' : 'p2', '손을 들고 먼저 나서서 면접 전체를 마무리하는 한마디')] }
+        : { text: english ? CLOSING_QUESTION_EN : CLOSING_QUESTION, role: 'exec', questionId: null },
     ];
   } else if (type === 'debate' || type === 'discussion') {
     const topic = await makeGroupTopic(orgBrief(org), type, english);
@@ -266,9 +273,16 @@ function discussionPlan(english: boolean): Planned[] {
       { text: english ? INTRO_QUESTION_EN : INTRO_QUESTION, role: 'hr', questionId: null, ...(withPeers ? { peers: both(0) } : {}) },
       ...clQuestions,
       ...main.map((q, i) => ({ ...q, ...(withPeers ? { peers: both(i + 1) } : {}) })),
-      { text: english ? CLOSING_QUESTION_EN : CLOSING_QUESTION, role: 'exec', questionId: null },
+      withPeers
+        // 다대다는 손 들고 먼저 나서는 AI 지원자 한 명 뒤에 내 차례
+        ? { text: english ? GROUP_CLOSING_QUESTION_EN : GROUP_CLOSING_QUESTION, role: 'exec', questionId: null,
+            peers: [turn(Math.random() < 0.5 ? 'p1' : 'p2', '손을 들고 먼저 나서서 면접 전체를 마무리하는 한마디')] }
+        : { text: english ? CLOSING_QUESTION_EN : CLOSING_QUESTION, role: 'exec', questionId: null },
     ];
   }
+
+  // 면접관 1명이면 모든 질문을 그 면접관이 한다
+  if (panelSize === 1) planned = planned.map((q) => ({ ...q, role: SOLO_ROLE[type] }));
 
   const { data: session, error } = await supabase
     .from('interview_sessions')
@@ -280,6 +294,8 @@ function discussionPlan(english: boolean): Planned[] {
       ...(type !== 'general' ? { interview_type: type } : {}),
       ...(groupSetup ? { group_setup: groupSetup } : {}),
       language,
+      with_peers: withPeers,
+      panel_size: panelSize,
       status: 'in_progress' as const,
       result: 'pending' as const,
       total_questions: planned.length,

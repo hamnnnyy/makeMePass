@@ -1,4 +1,4 @@
-import type { InterviewerRole } from '@/lib/constants/roles';
+import { INTERVIEWER_ROLES, type InterviewerRole } from '@/lib/constants/roles';
 import type { AnswerKind } from '@/lib/constants/interview';
 import type { NonVerbalSummary } from '@/features/mediapipe/logic/nonVerbal';
 import type { AudioStats } from './audio';
@@ -85,9 +85,14 @@ export function applyDeltas(favor: RoleValues, delta: RoleValues): RoleValues {
 
 export interface Thresholds { pass_threshold: number; eliminate_threshold: number }
 
-// DB session_result 값 그대로 반환. 탈락선 미만 = 즉시 탈락, 전원 합격선 이상 = 합격, 나머지 = 결렬.
-export function judge(favor: RoleValues, t: Thresholds) {
-  const [lowRole, min] = (Object.entries(favor) as [InterviewerRole, number][])
+// 면접관 1명이면 나머지 면접관의 변화는 없다
+export function onlyRoles(delta: RoleValues, roles: readonly InterviewerRole[]): RoleValues {
+  return { hr: roles.includes('hr') ? delta.hr : 0, tech: roles.includes('tech') ? delta.tech : 0, exec: roles.includes('exec') ? delta.exec : 0 };
+}
+
+// DB session_result 값 그대로 반환. 탈락선 미만 = 즉시 탈락, 들어온 면접관 전원 합격선 이상 = 합격, 나머지 = 결렬.
+export function judge(favor: RoleValues, t: Thresholds, roles: readonly InterviewerRole[] = INTERVIEWER_ROLES) {
+  const [lowRole, min] = roles.map((r) => [r, favor[r]] as [InterviewerRole, number])
     .reduce((a, b) => (b[1] < a[1] ? b : a));
   if (min < t.eliminate_threshold) return { result: 'fail_eliminate' as const, lowRole };
   if (min >= t.pass_threshold) return { result: 'pass' as const, lowRole: null };

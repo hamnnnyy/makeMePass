@@ -8,7 +8,7 @@ const display = Do_Hyeon({ variable: "--font-do-hyeon", weight: "400", subsets: 
 
 export const metadata: Metadata = {
   title: "합사카 — 합격은 사심입니까?",
-  description: "면접관 3명과 치르는 공기업 모의면접. 답변 내용과 시선·표정·시간까지 평가합니다.",
+  description: "공기업 모의면접. 면접관 1명·3명, AI 지원자와 함께하는 다대다·토론·토의, 영어 면접까지. 답변 내용과 시선·표정·시간을 평가합니다.",
 };
 
 export default function RootLayout({

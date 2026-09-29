@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { ROLE_LABELS, ROLE_COLORS, ROLE_ACCENT_HEX, INTERVIEWER_ROLES, type InterviewerRole } from '@/lib/constants/roles';
+import { panelRoles } from '@/lib/constants/interviewTypes';
 import { getPersonaNames } from '@/features/interviewer/personaNames';
 import { Portrait, PeerFace, moodOf } from '@/features/interviewer/components/Portrait';
 import type { InterviewMode } from '@/lib/constants/modes';
@@ -97,7 +98,7 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
   const supabase = await createClient();
 
   const [{ data: session }, { data: questions }] = await Promise.all([
-    supabase.from('interview_sessions').select('mode, interview_type, group_setup, organizations(pass_threshold)').eq('id', id).single(),
+    supabase.from('interview_sessions').select('mode, interview_type, panel_size, group_setup, organizations(pass_threshold)').eq('id', id).single(),
     supabase
       .from('session_questions')
       .select('id, sequence, question_text, asked_by_role, is_follow_up, transcript, filler_count, audio_url, score_content, score_fluency, score_eye_contact, score_expression, score_timing, hr_delta, tech_delta, exec_delta, hr_after, tech_after, exec_after, claude_feedback, peer_turns, answered_at')
@@ -106,6 +107,8 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
   ]);
   const names = session ? await getPersonaNames(supabase, session.mode) : ROLE_LABELS;
   const mode: InterviewMode = session?.mode ?? 'realistic';
+  // 들어온 면접관만 보여준다 (면접관 1명 면접은 그 한 명)
+  const roles = session ? panelRoles(session) : [...INTERVIEWER_ROLES];
 
   const all = questions ?? [];
   const answered = all.filter((q) => q.answered_at);
@@ -131,7 +134,7 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
   const passLine = (session?.organizations as { pass_threshold: number } | null)?.pass_threshold ?? null;
 
   // 명장면: 면접관마다 호감도가 가장 크게 오른 문항(반한 순간)과 떨어진 문항(등 돌린 순간)
-  const moments = INTERVIEWER_ROLES.flatMap((r) => {
+  const moments = roles.flatMap((r) => {
     const d = (q: (typeof all)[number]) => q[`${r}_delta`] as number;
     const up = answered.reduce<(typeof all)[number] | null>((a, q) => (d(q) >= 5 && (!a || d(q) > d(a)) ? q : a), null);
     const down = answered.reduce<(typeof all)[number] | null>((a, q) => (d(q) <= -5 && (!a || d(q) < d(a)) ? q : a), null);
@@ -169,8 +172,8 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
       {answered.length > 0 && (
         <section className="bg-neutral-900 rounded-2xl p-4 flex flex-col gap-4">
           <h2 className="text-xs text-neutral-500 font-medium tracking-widest">호감도 흐름</h2>
-          <div className="grid grid-cols-3 gap-2">
-            {INTERVIEWER_ROLES.map((r) => {
+          <div className={roles.length === 1 ? 'grid grid-cols-1' : 'grid grid-cols-3 gap-2'}>
+            {roles.map((r) => {
               const f = finalFavor(r);
               return (
                 <div key={r} className="rounded-xl bg-neutral-800/60 px-3 py-2.5 flex flex-col gap-1">
@@ -304,7 +307,7 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
                     {/* 면접관 속마음 말풍선 */}
                     {fb?.voices && (
                       <div className="flex flex-col gap-2">
-                        {INTERVIEWER_ROLES.map((r) => {
+                        {roles.map((r) => {
                           const v = fb.voices?.[r];
                           if (!v) return null;
                           const d = q[`${r}_delta`] as number;
@@ -325,7 +328,7 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
 
                     {/* 면접관별 득실과 이유 */}
                     <div className="rounded-xl bg-neutral-950/60 p-3 flex flex-col gap-2.5">
-                      {INTERVIEWER_ROLES.map((r) => {
+                      {roles.map((r) => {
                         const d = q[`${r}_delta`] as number;
                         const after = q[`${r}_after`] as number | null;
                         const verbal = fb?.verbalDeltas?.[r];

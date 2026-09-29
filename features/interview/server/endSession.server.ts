@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { judge, type Thresholds } from '../logic/scoring';
+import { panelRoles } from '@/lib/constants/interviewTypes';
 
 export async function endSession(sessionId: string) {
   const supabase = await createClient();
@@ -18,7 +19,7 @@ export async function endSession(sessionId: string) {
       .maybeSingle(),
     supabase
       .from('interview_sessions')
-      .select('started_at, status, organizations(pass_threshold, eliminate_threshold)')
+      .select('started_at, status, interview_type, panel_size, organizations(pass_threshold, eliminate_threshold)')
       .eq('id', sessionId)
       .single(),
   ]);
@@ -29,7 +30,7 @@ export async function endSession(sessionId: string) {
   const favor = { hr: lastQ?.hr_after ?? 50, tech: lastQ?.tech_after ?? 50, exec: lastQ?.exec_after ?? 50 };
   const org = session.organizations as unknown as Thresholds;
   // 한 문항도 답하지 않고 나가면 중도 포기
-  const { result, lowRole } = lastQ ? judge(favor, org) : { result: 'pending' as const, lowRole: null };
+  const { result, lowRole } = lastQ ? judge(favor, org, panelRoles(session)) : { result: 'pending' as const, lowRole: null };
 
   await supabase.from('interview_sessions').update({
     status: !lastQ ? 'aborted' : result === 'fail_eliminate' ? 'eliminated' : 'completed',

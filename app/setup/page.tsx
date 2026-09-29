@@ -11,12 +11,43 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { BLIND_NOTICE } from '@/lib/constants/disqualify';
 import { OrgPicker } from '@/features/interview/components/OrgPicker';
 import createSession from '@/features/interview/server/createSession.server';
-import { INTERVIEW_TYPES, INTERVIEW_TYPE_INFO, PEER_TYPES, TURN_TYPES, type InterviewType } from '@/lib/constants/interviewTypes';
+import { INTERVIEW_TYPES, INTERVIEW_TYPE_INFO, PEER_OPTIONAL, PEER_REQUIRED, SOLO_ROLE, TURN_TYPES, formatLabel, type InterviewType } from '@/lib/constants/interviewTypes';
+import { ROLE_LABELS } from '@/lib/constants/roles';
 
 const MODES: InterviewMode[] = ['realistic', 'casual', 'boss', 'cute'];
 
 const MIN_QUESTIONS = 3;
 const MAX_QUESTIONS = 10;
+
+// 면접 형식 한 줄: 제목 + 두 가지 중 하나 고르기. 유형에 따라 한쪽으로 고정되면 이유를 보여준다.
+function Choice<T extends string | number | boolean>({ title, value, options, onChange, locked }: {
+  title: string; value: T; options: [T, string][]; onChange: (v: T) => void; locked?: string;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex justify-between items-baseline gap-3">
+        <span className="text-sm text-neutral-300">{title}</span>
+        {locked && <span className="text-[11px] text-neutral-500">{locked}</span>}
+      </div>
+      <div role="radiogroup" aria-label={title} className="grid grid-cols-2 gap-2">
+        {options.map(([v, label]) => (
+          <button
+            key={String(v)}
+            role="radio"
+            aria-checked={value === v}
+            disabled={!!locked}
+            onClick={() => onChange(v)}
+            className={`rounded-xl px-3 py-2.5 text-sm transition-all disabled:cursor-not-allowed ${
+              value === v ? 'ring-2 ring-pink-500 bg-pink-500/10 text-white' : 'bg-neutral-800/80 text-neutral-400 hover:bg-neutral-700/80 disabled:opacity-40'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function StepIndicator({ current }: { current: number }) {
   return (
@@ -47,7 +78,10 @@ export default function SetupPage() {
   const [mode, setMode] = useState<InterviewMode | null>(null);
   const [interviewType, setInterviewType] = useState<InterviewType>('general');
   const [questionCount, setQuestionCount] = useState(5);
-  const [inEnglish, setInEnglish] = useState(false);  // AI 지원자 유형을 영어로 진행
+  // 면접 형식 (유형과 따로 고른다)
+  const [peerChoice, setPeerChoice] = useState(false);
+  const [panelSize, setPanelSize] = useState<1 | 3>(3);
+  const [inEnglish, setInEnglish] = useState(false);
   const [coverLetterFile, setCoverLetterFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [starting, setStarting] = useState(false);
@@ -63,6 +97,10 @@ export default function SetupPage() {
   }, []);
   const [error, setError] = useState<string | null>(null);
 
+  // 토론·토의는 늘 AI 지원자와 함께, PT 는 혼자 발표
+  const withPeers = PEER_REQUIRED.includes(interviewType) || (peerChoice && PEER_OPTIONAL.includes(interviewType));
+  const format = { withPeers, panelSize, english: inEnglish };
+
   const canNext =
     (step === 1 && orgId !== null) ||
     (step === 2 && mode !== null) ||
@@ -74,7 +112,7 @@ export default function SetupPage() {
     setStarting(true);
     setError(null);
     try {
-      const res = await createSession(orgId!, mode!, interviewType, questionCount, coverLetterFile, inEnglish);
+      const res = await createSession(orgId!, mode!, interviewType, questionCount, coverLetterFile, format);
       if (res?.error) { setError(res.error); setStarting(false); }
     } catch {
       setError('면접을 준비하지 못했습니다. 잠시 후 다시 시도해 주세요.');
@@ -151,16 +189,29 @@ export default function SetupPage() {
                 </div>
               </div>
 
-              {/* 다대다·토론·토의는 영어로도 진행할 수 있다 */}
-              {PEER_TYPES.includes(interviewType) && (
-                <label className="flex items-center justify-between gap-4 rounded-2xl bg-neutral-800/80 px-4 py-3 cursor-pointer">
-                  <span>
-                    <span className="block text-sm font-semibold">영어로 진행</span>
-                    <span className="block text-[11px] text-neutral-400 mt-1">면접관과 AI 지원자가 영어로 말하고, 영어 답변을 평가해요. 피드백은 한국어.</span>
-                  </span>
-                  <input type="checkbox" checked={inEnglish} onChange={(e) => setInEnglish(e.target.checked)} className="h-5 w-5 accent-pink-500" />
-                </label>
-              )}
+              {/* 면접 형식 */}
+              <div className="grid md:grid-cols-3 gap-5">
+                <Choice
+                  title="지원자"
+                  value={withPeers}
+                  options={[[false, '나 혼자'], [true, 'AI 지원자 2명과']]}
+                  onChange={setPeerChoice}
+                  locked={PEER_REQUIRED.includes(interviewType) ? '토론·토의는 함께 진행' : !PEER_OPTIONAL.includes(interviewType) ? 'PT는 혼자 발표' : undefined}
+                />
+                <Choice
+                  title="면접관"
+                  value={panelSize}
+                  options={[[3, '3명'], [1, `1명 (${ROLE_LABELS[SOLO_ROLE[interviewType]]})`]]}
+                  onChange={setPanelSize}
+                />
+                <Choice
+                  title="언어"
+                  value={inEnglish}
+                  options={[[false, '한국어'], [true, '영어']]}
+                  onChange={setInEnglish}
+                />
+              </div>
+              {inEnglish && <p className="-mt-4 text-[11px] text-neutral-500">영어로 묻고 영어 답변을 평가해요. 피드백은 한국어로 나와요.</p>}
 
               {/* 질문 수 — PT·토론·토의는 정해진 차례로 진행 */}
               {!TURN_TYPES.includes(interviewType) && <div>
@@ -189,8 +240,8 @@ export default function SetupPage() {
                 </div>
               </div>}
 
-              {/* 자기소개서 — PT·토론·토의는 주제 과제라, 영어면접은 영어 질문이라 사용하지 않음 */}
-              {!TURN_TYPES.includes(interviewType) && interviewType !== 'english' && !(inEnglish && PEER_TYPES.includes(interviewType)) && <div>
+              {/* 자기소개서 — PT·토론·토의는 주제 과제라 사용하지 않음 */}
+              {!TURN_TYPES.includes(interviewType) && <div>
                 <div className="flex justify-between items-center border-b border-neutral-700 pb-2 mb-6">
                   <span className="text-sm text-neutral-300">자기소개서 <span className="text-neutral-500">(선택 · PDF 5MB 이하 · 첨부 시 자소서 기반 질문 출제)</span></span>
                   {coverLetterFile && (
@@ -225,7 +276,7 @@ export default function SetupPage() {
       <div className="fixed inset-x-0 bottom-0 z-20 bg-night/90 backdrop-blur border-t border-neutral-800">
         <div className="max-w-4xl mx-auto px-6 md:px-8 py-4 flex items-center gap-4">
           <p className="text-sm text-neutral-400 truncate flex-1">
-            {[orgName, mode && `${MODE_LABELS[mode]} 모드`, step === 3 && INTERVIEW_TYPE_INFO[interviewType].label]
+            {[orgName, mode && `${MODE_LABELS[mode]} 모드`, step === 3 && formatLabel({ interview_type: interviewType, with_peers: withPeers, panel_size: panelSize, language: inEnglish ? 'en' : 'ko' })]
               .filter(Boolean).join(' · ') || '기관을 골라 주세요'}
           </p>
           {error && <p className="text-xs text-red-400">{error}</p>}

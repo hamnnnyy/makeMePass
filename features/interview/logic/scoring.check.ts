@@ -1,7 +1,7 @@
 // 실행: bun features/interview/logic/scoring.check.ts
 import assert from 'node:assert/strict';
 import { analyzeSamples } from './audio';
-import { scoreNonVerbal, scoreTiming, finalDeltas, applyDeltas, judge, withOrgFit } from './scoring';
+import { scoreNonVerbal, scoreTiming, finalDeltas, applyDeltas, judge, onlyRoles, withOrgFit } from './scoring';
 
 // 오디오: 1초 침묵 + 2초 발화 + 5초 침묵 + 1초 발화
 const rate = 16000;
@@ -49,5 +49,10 @@ const t = { pass_threshold: 60, eliminate_threshold: 25 };
 assert.deepEqual(judge({ hr: 70, tech: 65, exec: 61 }, t), { result: 'pass', lowRole: null });
 assert.deepEqual(judge({ hr: 70, tech: 55, exec: 61 }, t), { result: 'fail_veto', lowRole: 'tech' });
 assert.deepEqual(judge({ hr: 20, tech: 30, exec: 61 }, t), { result: 'fail_eliminate', lowRole: 'hr' });
+
+// 면접관 1명: 그 면접관만 보고 판정, 다른 면접관 변화는 0
+assert.deepEqual(judge({ hr: 50, tech: 50, exec: 70 }, t, ['exec']), { result: 'pass', lowRole: null });
+assert.deepEqual(judge({ hr: 90, tech: 90, exec: 20 }, t, ['exec']), { result: 'fail_eliminate', lowRole: 'exec' });
+assert.deepEqual(onlyRoles({ hr: 3, tech: -2, exec: 5 }, ['tech']), { hr: 0, tech: -2, exec: 0 });
 
 console.log('scoring ok');

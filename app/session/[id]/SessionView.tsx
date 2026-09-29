@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { InterviewerPanel } from '@/features/interviewer/components/InterviewerPanel';
 import { moodOf } from '@/features/interviewer/components/Portrait';
-import { INTERVIEWER_ROLES } from '@/lib/constants/roles';
 import { DialogueBox } from '@/features/interviewer/components/DialogueBox';
 import { BLIND_NOTICE, DISQUALIFY_LINE, DISQUALIFY_LINE_EN } from '@/lib/constants/disqualify';
 import type { InterviewerRole } from '@/lib/constants/roles';
@@ -22,7 +21,7 @@ import { SelfCam } from '@/features/interview/components/SelfCam';
 import { endSession } from '@/features/interview/server/endSession.server';
 import { evaluateAnswer } from '@/features/interview/server/evaluateAnswer.server';
 import type { FavorState } from '@/features/interview/server/evaluateAnswer.server';
-import { PEER_TYPES, PT_INTRO_LINE, SIDE_EN, PT_PREP_SEC, PT_TOPIC_PREFIX } from '@/lib/constants/interviewTypes';
+import { PT_INTRO_LINE, PT_INTRO_LINE_EN, SIDE_EN, PT_PREP_SEC, PT_TOPIC_PREFIX, leadRole, panelRoles } from '@/lib/constants/interviewTypes';
 import { PEERS, isPeer, type PeerId, type Speaker } from '@/lib/constants/peers';
 import { getPeerTurns } from '@/features/interview/server/peerTurns.server';
 import { PeerSeat } from '@/features/interview/components/PeerSeat';
@@ -101,7 +100,10 @@ export function SessionView({
   const { speak, prefetch, getLevel } = useTTS(session.mode, english ? 'eng' : 'kor');
   const [speaker, setSpeaker] = useState<Speaker | null>(null);
   const [peerLine, setPeerLine] = useState<{ peer: PeerId; text: string } | null>(null);  // AI 지원자 자막
-  const hasPeers = PEER_TYPES.includes(session.interview_type);
+  const hasPeers = session.with_peers;
+  // 들어온 면접관 (1명 또는 3명). 첫인사·마무리는 lead 가 한다.
+  const roles = panelRoles(session);
+  const lead = leadRole(roles);
   const setup = session.group_setup;
   const { ready: faceReady, resultRef } = useFaceLandmarker(videoRef);
   const metrics = useExpressionMetrics(resultRef, phase !== 'lobby');
@@ -115,7 +117,7 @@ export function SessionView({
     setSpeaker(null);
   }
 
-  async function finishInterview(line: string, role: InterviewerRole = 'exec') {
+  async function finishInterview(line: string, role: InterviewerRole = lead) {
     setPhase('ending');
     setFinalLine(line);
     await say(line, role);
@@ -131,7 +133,7 @@ export function SessionView({
     setPhase('speaking');
     // PT 주제는 길어서 읽지 않고 화면에 띄운 뒤 준비 시간을 준다
     if (answerKind(q, session.interview_type) === 'pt') {
-      await say(PT_INTRO_LINE, q.asked_by_role as InterviewerRole);
+      await say(english ? PT_INTRO_LINE_EN : PT_INTRO_LINE, q.asked_by_role as InterviewerRole);
       setRemaining(PT_PREP_SEC);
       setPhase('preparing');
       return;
@@ -175,13 +177,13 @@ export function SessionView({
   async function start() {
     if (startIdx === 0) {
       setPhase('speaking');
-      await say(english ? greetingLineEn(orgName) : greetingLine(orgName), 'exec');
+      await say(english ? greetingLineEn(orgName) : greetingLine(orgName), lead);
       if (setup && (session.interview_type === 'debate' || session.interview_type === 'discussion')) {
         const title = setup.topic.split('\n')[0];
         const kind = session.interview_type === 'debate' ? '논제' : '과제';
         await say(english
           ? `Today's ${session.interview_type === 'debate' ? 'motion' : 'task'} is: ${title}${setup.userSide ? ` You are on the ${SIDE_EN[setup.userSide] ?? setup.userSide} side.` : ''}`
-          : `오늘의 ${kind}는 ${title} 입니다.${setup.userSide ? ` 지원자님은 ${setup.userSide} 측입니다.` : ''}`, 'exec');
+          : `오늘의 ${kind}는 ${title} 입니다.${setup.userSide ? ` 지원자님은 ${setup.userSide} 측입니다.` : ''}`, lead);
       }
     }
     await ask(startIdx);
@@ -290,8 +292,8 @@ export function SessionView({
       </div>
 
       {/* Interviewer panels */}
-      <div className="grid grid-cols-3 gap-4">
-        {INTERVIEWER_ROLES.map((role) => (
+      <div className={roles.length === 1 ? 'grid grid-cols-1 w-full max-w-xs mx-auto' : 'grid grid-cols-3 gap-4'}>
+        {roles.map((role) => (
           <InterviewerPanel key={role} mode={session.mode} role={role} mood={moodOf(deltas?.values[role])}
             name={names[role]} favor={favor[role]} passLine={passLine}
             delta={deltas ? { value: deltas.values[role], key: deltas.key } : undefined} speaking={speaker === role}

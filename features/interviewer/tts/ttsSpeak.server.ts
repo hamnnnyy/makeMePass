@@ -22,7 +22,8 @@ export async function ttsSpeak(text: string, speaker: Speaker, mode: InterviewMo
   const url = storage.getPublicUrl(path).data.publicUrl;
 
   // 같은 목소리·문장을 전에 만들었으면 그대로 쓴다 (질문 은행·인사말은 반복된다)
-  const cached = await fetch(url, { method: 'HEAD' }).then((r) => r.ok).catch(() => false);
+  // 서버 액션은 한 번에 하나씩 처리되므로 여기서 멈추면 답변 평가까지 막힌다 → 짧게 끊는다
+  const cached = await fetch(url, { method: 'HEAD', signal: AbortSignal.timeout(3000) }).then((r) => r.ok).catch(() => false);
   if (cached) return url;
 
   try {
