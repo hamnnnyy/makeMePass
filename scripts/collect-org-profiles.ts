@@ -8,7 +8,11 @@ const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPAB
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 const { data: orgs } = await sb.from('organizations').select('code, name_ko, core_values, talent_profile');
-const todo = (orgs ?? []).filter((o) => !(o.talent_profile as { talents?: string[] } | null)?.talents?.length);
+// talentsChecked: 검색했지만 공식 인재상을 찾지 못한 기관 (다시 검색해도 한도만 쓴다)
+const todo = (orgs ?? []).filter((o) => {
+  const p = o.talent_profile as { talents?: string[]; talentsChecked?: string } | null;
+  return !p?.talents?.length && !p?.talentsChecked;
+});
 console.log(`인재상 없는 기관 ${todo.length}곳`);
 
 for (const org of todo) {
@@ -26,6 +30,7 @@ for (const org of todo) {
     for (const k of ['mission', 'talents', 'issues', 'interview'] as const) {
       if (p[k]?.length) Object.assign(profile, { [k]: p[k] });
     }
+    if (!p.talents?.length) Object.assign(profile, { talentsChecked: new Date().toISOString().slice(0, 10) });
     const { error } = await sb.from('organizations').update({
       talent_profile: profile,
       ...(p.core_values?.length ? { core_values: p.core_values } : {}),

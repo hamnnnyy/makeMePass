@@ -124,6 +124,36 @@ function parseMeta(raw: FormDataEntryValue | null) {
 
 const MAX_AUDIO_BYTES = 8 * 1024 * 1024;
 
+// 이미 평가된 문항의 결과를 DB 에서 다시 만든다 (새 평가·새 꼬리질문 없음)
+async function storedResult(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  sessionQuestionId: string,
+  sq: { session_id: string; asked_by_role: string; hr_after: number | null; tech_after: number | null; exec_after: number | null },
+): Promise<EvaluateResult> {
+  const [{ data: session }, { data: fu }] = await Promise.all([
+    supabase.from('interview_sessions')
+      .select('result, disqualification, organizations(pass_threshold, eliminate_threshold)')
+      .eq('id', sq.session_id).single(),
+    supabase.from('session_questions')
+      .select('id, question_text, asked_by_role')
+      .eq('parent_session_question_id', sessionQuestionId).is('answered_at', null)
+      .limit(1).maybeSingle(),
+  ]);
+  const favor: FavorState = { hr: sq.hr_after ?? 50, tech: sq.tech_after ?? 50, exec: sq.exec_after ?? 50 };
+  const role = sq.asked_by_role as InterviewerRole;
+  const dq = session?.result === 'fail_disqualified' ? session.disqualification : null;
+  const org = session?.organizations as unknown as { pass_threshold: number; eliminate_threshold: number } | null;
+  const verdict = org ? judge(favor, org) : null;
+  return {
+    favor,
+    reaction: '',
+    reactionRole: role,
+    followUp: fu && !dq ? { id: fu.id, text: fu.question_text, role: fu.asked_by_role as InterviewerRole } : null,
+    eliminatedBy: !dq && verdict?.result === 'fail_eliminate' ? verdict.lowRole : null,
+    disqualified: dq ? { type: dq.type, quote: dq.quote } : null,
+  };
+}
+
 export async function evaluateAnswer(sessionQuestionId: string, formData: FormData): Promise<EvaluateResult> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -132,12 +162,13 @@ export async function evaluateAnswer(sessionQuestionId: string, formData: FormDa
   // RLS가 본인 세션의 질문만 돌려준다
   const { data: sq } = await supabase
     .from('session_questions')
-    .select('question_text, asked_by_role, session_id, sequence, is_follow_up, question_id, peer_turns, answered_at')
+    .select('question_text, asked_by_role, session_id, sequence, is_follow_up, question_id, peer_turns, answered_at, hr_after, tech_after, exec_after')
     .eq('id', sessionQuestionId)
     .single();
   if (!sq) throw new Error('질문을 찾을 수 없습니다.');
-  // 남용 방지: 한 문항은 한 번만 평가한다 (평가 도중 실패하면 answered_at 이 비어 있어 다시 답할 수 있다)
-  if (sq.answered_at) throw new Error('이미 평가한 답변입니다.');
+  // 한 문항은 한 번만 평가한다 (남용 방지). 이미 평가된 문항을 다시 보내면(평가는 끝났는데 응답이 끊겨
+  // 사용자가 '다시 답변'을 누른 경우) 새로 평가하지 않고 저장된 결과를 돌려줘 면접이 이어지게 한다.
+  if (sq.answered_at) return storedResult(supabase, sessionQuestionId, sq);
 
   const [{ data: session }, { data: history }, { data: personas }] = await Promise.all([
     supabase
