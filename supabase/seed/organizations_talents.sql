@@ -1,0 +1,38 @@
+-- 기관 인재상·핵심가치 (2026-09-29 웹 검색: 기관 공식 채용 페이지·채용 포털·기사에서 확인).
+-- 인재상을 확인하지 못한 기관은 talentsChecked 로 표시해 수집 스크립트가 다시 검색하지 않는다. 여러 번 실행해도 안전.
+begin;
+update public.organizations set talent_profile = coalesce(talent_profile, '{}'::jsonb) || '{"talents": ["글로벌 항만 전문인", "ESG 선도인", "미래 도전 혁신인"]}'::jsonb, core_values = '["혁신", "전문성", "상생", "소통"]'::jsonb where code = 'BPA';
+update public.organizations set talent_profile = coalesce(talent_profile, '{}'::jsonb) || '{"talents": ["고객 행복을 추구하는 섬김인", "상호존중과 신뢰의 상생인", "글로벌경쟁력을 갖춘 전문인", "미래가치를 창출하는 창조인"]}'::jsonb where code = 'EX';
+update public.organizations set talent_profile = coalesce(talent_profile, '{}'::jsonb) || '{"talents": ["도전하는 인재", "혁신적인 인재", "존중하는 인재"]}'::jsonb, core_values = '["꿈을 향한 도전", "함께하는 행복", "더불어 쌓아가는 신뢰", "타협하지 않는 윤리"]'::jsonb where code = 'IIAC';
+update public.organizations set talent_profile = coalesce(talent_profile, '{}'::jsonb) || '{"talents": ["글로벌 스탠더드를 지향하는 전문인", "다양한 분야에 유연한 융합인", "공동체 발전에 기여하는 배려인"]}'::jsonb where code = 'KAC';
+update public.organizations set talent_profile = coalesce(talent_profile, '{}'::jsonb) || '{"talents": ["친환경·대륙철도 시대를 이끄는 철도인", "사람 중심으로 소통·협력하는 인재", "고객지향 전문인"]}'::jsonb, core_values = '["안전", "혁신", "소통", "신뢰"]'::jsonb where code = 'KORAIL';
+update public.organizations set talent_profile = coalesce(talent_profile, '{}'::jsonb) || '{"talents": ["포용", "안전", "신뢰", "도전"]}'::jsonb, core_values = '["포용", "안전", "신뢰", "도전"]'::jsonb where code = 'KWATER';
+update public.organizations set talent_profile = coalesce(talent_profile, '{}'::jsonb) || '{"talents": ["최고의 전문성을 추구하는 인재(Professional)", "혁신을 주도하는 인재(Innovative)", "열린 마음으로 소통·협력하는 인재(Collaboration)"]}'::jsonb where code = 'REB';
+update public.organizations set talent_profile = coalesce(talent_profile, '{}'::jsonb) || '{"talents": ["안전분야 최고를 지향하는 인재", "혁신을 주도하는 인재", "열린 마음으로 협력하는 인재"]}'::jsonb, core_values = '["안전 우선", "도전 혁신", "고객 지향", "지속 경영"]'::jsonb where code = 'SEOULMETRO';
+update public.organizations set talent_profile = coalesce(talent_profile, '{}'::jsonb) || '{"talents": ["별난인(인성)", "창의혁신", "능동", "지식기반 학습자"]}'::jsonb where code = 'HRDK';
+update public.organizations set talent_profile = coalesce(talent_profile, '{}'::jsonb) || '{"talents": ["전문성", "고객지향성", "창의성", "협력성"]}'::jsonb where code = 'KEIS';
+update public.organizations set talent_profile = coalesce(talent_profile, '{}'::jsonb) || '{"talents": ["고객가치 창출에 기여하는 수은인", "최고의 전문가를 추구하는 수은인", "미래와 세계에 도전하는 수은인", "국민과 고객으로부터 신뢰받는 수은인", "리더십과 팀워크를 중시하는 수은인"]}'::jsonb where code = 'KEXIM';
+update public.organizations set talent_profile = coalesce(talent_profile, '{}'::jsonb) || '{"talents": ["진심을 통한 지원", "시너지를 발휘하는 소통", "신뢰할 수 있는 전문성", "윤리적 사고를 바탕으로 한 공정성"]}'::jsonb where code = 'KINFA';
+update public.organizations set talent_profile = coalesce(talent_profile, '{}'::jsonb) || '{"talents": ["참여와 열정", "창의와 융합", "책임과 존중"]}'::jsonb where code = 'KECO';
+update public.organizations set talent_profile = coalesce(talent_profile, '{}'::jsonb) || '{"talents": ["지식 전문인", "배려 존중인", "소통 협력인"]}'::jsonb where code = 'KRC';
+update public.organizations set talent_profile = coalesce(talent_profile, '{}'::jsonb) || '{"talents": ["책임", "공감", "열정"]}'::jsonb where code = 'COMWEL';
+update public.organizations set talent_profile = coalesce(talent_profile, '{}'::jsonb) || '{"talents": ["국민을 위하는 인재", "공정함으로 신뢰받는 인재", "소통하고 협력하는 인재", "열린 전문성을 갖춘 창의적 인재"]}'::jsonb, core_values = '["국민 최우선", "공정과 신뢰", "소통과 협력", "열린 전문성"]'::jsonb where code = 'HIRA';
+update public.organizations set talent_profile = coalesce(talent_profile, '{}'::jsonb) || '{"talents": ["국민을 위하는 인재", "정직으로 신뢰받는 인재", "혁신을 추구하는 인재", "전문성 있는 인재"]}'::jsonb where code = 'NHIS';
+update public.organizations set talent_profile = coalesce(talent_profile, '{}'::jsonb) || '{"talents": ["글로벌 마인드(국제적 감각·네트워킹)", "도전·개척정신(변화 주도)", "전문성(프로근성·독립적 사업능력)"]}'::jsonb where code = 'KOTRA';
+update public.organizations set talent_profile = coalesce(talent_profile, '{}'::jsonb) || '{"talents": ["미래성장을 주도하는 도전적 변화인재", "세계 최고를 지향하는 글로벌 전문인재", "사회적 책임을 다하는 협력적 조직인재"]}'::jsonb where code = 'EWP';
+update public.organizations set talent_profile = coalesce(talent_profile, '{}'::jsonb) || '{"talents": ["창의인재", "전문인재", "신뢰인재"]}'::jsonb where code = 'KDN';
+update public.organizations set talent_profile = coalesce(talent_profile, '{}'::jsonb) || '{"talents": ["에너지 분야 지식을 갖춘 전문가", "동료와 협력해 성과를 내는 인재", "윤리성을 갖추고 고객과 소통하는 인재", "글로벌 관점에서 기회를 발굴하는 인재"]}'::jsonb where code = 'KEA';
+update public.organizations set talent_profile = coalesce(talent_profile, '{}'::jsonb) || '{"talents": ["기본에 충실한 인재", "배려하는 상생인재", "글로벌 전문인재"]}'::jsonb, core_values = '["안전 최우선", "지속 성장", "상호 존중", "사회적 책임"]'::jsonb where code = 'KHNP';
+update public.organizations set talent_profile = coalesce(talent_profile, '{}'::jsonb) || '{"talents": ["개방형 인재", "실행형 인재", "학습형 인재"]}'::jsonb, core_values = '["가치창조", "열린사고", "도전정신", "사회공헌"]'::jsonb where code = 'KOEN';
+update public.organizations set talent_profile = coalesce(talent_profile, '{}'::jsonb) || '{"talents": ["미래에 도전하고 변화를 선도하는 사람", "믿고 협력하여 공동의 성공을 실현하는 사람", "자기분야의 최고를 추구하는 사람"]}'::jsonb where code = 'KOGAS';
+update public.organizations set talent_profile = coalesce(talent_profile, '{}'::jsonb) || '{"talents": ["가치 창출에 앞장서는 실천인", "디지털 혁신을 리드하는 도전인", "상생과 협력을 추구하는 소통인"]}'::jsonb where code = 'KOSPO';
+update public.organizations set talent_profile = coalesce(talent_profile, '{}'::jsonb) || '{"talents": ["세계 최고를 지향하는 글로벌 인재", "변화를 주도하는 도전인재"]}'::jsonb where code = 'KOWEPO';
+update public.organizations set talent_profile = coalesce(talent_profile, '{}'::jsonb) || '{"talentsChecked": "2026-09-29"}'::jsonb, core_values = '["안전", "혁신", "소통", "공정"]'::jsonb where code = 'KR';
+update public.organizations set talent_profile = coalesce(talent_profile, '{}'::jsonb) || '{"talentsChecked": "2026-09-29"}'::jsonb, core_values = '["설렘과 감동", "소통과 협력", "고객섬김"]'::jsonb where code = 'KTO';
+update public.organizations set talent_profile = coalesce(talent_profile, '{}'::jsonb) || '{"talentsChecked": "2026-09-29"}'::jsonb, core_values = '["혁신을 향한 도전", "신뢰받는 전문성", "공익을 추구하는 헌신"]'::jsonb where code = 'NIA';
+update public.organizations set talent_profile = coalesce(talent_profile, '{}'::jsonb) || '{"talentsChecked": "2026-09-29"}'::jsonb where code = 'NPS';
+update public.organizations set talent_profile = coalesce(talent_profile, '{}'::jsonb) || '{"talentsChecked": "2026-09-29"}'::jsonb where code = 'KISA';
+update public.organizations set talent_profile = coalesce(talent_profile, '{}'::jsonb) || '{"talentsChecked": "2026-09-29"}'::jsonb where code = 'KOMSCO';
+update public.organizations set talent_profile = coalesce(talent_profile, '{}'::jsonb) || '{"talentsChecked": "2026-09-29"}'::jsonb where code = 'KNOC';
+update public.organizations set talent_profile = coalesce(talent_profile, '{}'::jsonb) || '{"talentsChecked": "2026-09-29"}'::jsonb where code = 'KOMIPO';
+commit;
