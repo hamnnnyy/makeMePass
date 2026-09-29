@@ -33,6 +33,8 @@ const Navbar = async () => {
             <nav className="flex items-center gap-2 text-sm text-white/80">
                 <Link href="/collection" className="hover:text-white">도감</Link>
                 <span className="text-white/30">|</span>
+                <Link href="/stats" className="hover:text-white">기록</Link>
+                <span className="text-white/30">|</span>
                 {user ? (
                     <details className="relative">
                         <summary className="list-none cursor-pointer hover:text-white select-none">
