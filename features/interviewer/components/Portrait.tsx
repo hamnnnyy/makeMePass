@@ -9,12 +9,16 @@ export const moodOf = (delta: number | undefined): Mood =>
   !delta ? 'neutral' : delta > 0 ? 'happy' : 'upset';
 
 // public/personas/ 에 있는 일러스트 (2:3 세로, 확장자 .png 제외). 그림을 추가하면 여기에도 적는다.
-// 규칙: {mode}-{role} 기본, {mode}-{role}-happy / -upset 표정 (표정 그림은 기본 그림의 얼굴 위치를 따른다)
+// 규칙: {mode}-{role}{기수(2 이상일 때)} 기본, 뒤에 -happy / -upset 표정 (표정 그림은 기본 그림의 얼굴 위치를 따른다)
 // 값 = 얼굴 중심 [x%, y%]. 말풍선 아바타에서 얼굴을 확대할 때 쓴다.
 const FACES: Record<string, [number, number]> = {
   'cute-hr': [46, 29],
   'cute-tech': [50, 29],
   'cute-exec': [50, 26],
+  // 애니 2기: 소악마 후배 · 무표정 천재 · 학생회장 위원장
+  'cute-hr2': [48, 24],
+  'cute-tech2': [49, 23],
+  'cute-exec2': [48, 22],
   'casual-hr': [49, 27],
   // AI 지원자 (다대다·토론·토의)
   'peer-p1': [46, 25],
@@ -31,8 +35,10 @@ const VERSION = 2;
 // 그림 파일 주소 (예: 'cute-hr', 'peer-p1', 'cute-hr-happy')
 export const personaUrl = (name: string) => `/personas/${name}.png?v=${VERSION}`;
 
-export function portraitSrc(mode: InterviewMode, role: InterviewerRole, mood: Mood = 'neutral') {
-  const base = `${mode}-${role}`;
+export const portraitKey = (mode: InterviewMode, role: InterviewerRole, cast = 1) => `${mode}-${role}${cast > 1 ? cast : ''}`;
+
+export function portraitSrc(mode: InterviewMode, role: InterviewerRole, mood: Mood = 'neutral', cast = 1) {
+  const base = portraitKey(mode, role, cast);
   if (!FACES[base]) return null;
   return `/personas/${mood !== 'neutral' && MOOD_PORTRAITS.has(`${base}-${mood}`) ? `${base}-${mood}` : base}.png?v=${VERSION}`;
 }
@@ -42,6 +48,7 @@ const ZOOM = 2.0;
 interface Props {
   mode: InterviewMode;
   role: InterviewerRole;
+  cast?: number;         // 면접관 기수 (애니 2기 = 2)
   mood?: Mood;
   face?: boolean;         // 얼굴만 확대 (말풍선 아바타)
   silhouette?: boolean;   // 미수집 도감 카드
@@ -73,10 +80,10 @@ export function PeerFace({ peer, sizes }: { peer: 'p1' | 'p2'; sizes: string }) 
 
 // 면접관 일러스트. 부모가 relative + 크기를 가져야 한다 (next/image fill).
 // 표정 그림이 없으면 기본 그림, 기본 그림도 없으면 fallback.
-export function Portrait({ mode, role, mood, face, silhouette, sizes, fallback, children }: Props) {
-  const src = portraitSrc(mode, role, mood);
+export function Portrait({ mode, role, cast = 1, mood, face, silhouette, sizes, fallback, children }: Props) {
+  const src = portraitSrc(mode, role, mood, cast);
   if (!src) return <>{fallback}</>;
-  if (face) return <FaceCrop src={src} face={FACES[`${mode}-${role}`]} sizes={sizes} />;
+  if (face) return <FaceCrop src={src} face={FACES[portraitKey(mode, role, cast)]} sizes={sizes} />;
   return (
     <>
       <Image

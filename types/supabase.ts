@@ -70,11 +70,12 @@ export interface Database {
           language: 'ko' | 'en';  // 진행 언어, migrations/20260929020000
           with_peers: boolean;  // AI 지원자 참여, migrations/20260929030000
           track: 'general' | 'it';  // 지원 직무 계열, migrations/20260929040000
+          cast_no: number;  // 들어온 면접관 기수 (애니 모드 1기·2기), migrations/20260929050000
           panel_size: 1 | 3;  // 면접관 수
           started_at: string;
           ended_at: string | null;
         };
-        Insert: Omit<Database['public']['Tables']['interview_sessions']['Row'], 'id' | 'started_at' | 'interview_type' | 'group_setup' | 'disqualification' | 'language' | 'with_peers' | 'panel_size' | 'track'> & { language?: 'ko' | 'en'; track?: 'general' | 'it'; with_peers?: boolean; panel_size?: 1 | 3; interview_type?: Database['public']['Tables']['interview_sessions']['Row']['interview_type']; group_setup?: Database['public']['Tables']['interview_sessions']['Row']['group_setup']; disqualification?: Database['public']['Tables']['interview_sessions']['Row']['disqualification'] };
+        Insert: Omit<Database['public']['Tables']['interview_sessions']['Row'], 'id' | 'started_at' | 'interview_type' | 'group_setup' | 'disqualification' | 'language' | 'with_peers' | 'panel_size' | 'track' | 'cast_no'> & { language?: 'ko' | 'en'; track?: 'general' | 'it'; cast_no?: number; with_peers?: boolean; panel_size?: 1 | 3; interview_type?: Database['public']['Tables']['interview_sessions']['Row']['interview_type']; group_setup?: Database['public']['Tables']['interview_sessions']['Row']['group_setup']; disqualification?: Database['public']['Tables']['interview_sessions']['Row']['disqualification'] };
         Update: Partial<Database['public']['Tables']['interview_sessions']['Insert']>;
         Relationships: [
           { foreignKeyName: 'interview_sessions_organization_id_fkey'; columns: ['organization_id']; isOneToOne: false; referencedRelation: 'organizations'; referencedColumns: ['id'] },
@@ -211,6 +212,7 @@ export interface Database {
           id: string;
           mode: InterviewMode;
           role: InterviewerRole;
+          cast_no: number;  // 같은 모드·역할의 몇 번째 캐릭터 (애니 모드 2기), migrations/20260929050000
           label_ko: string;
           position_ko: string | null;
           voice_id: string;
@@ -227,7 +229,7 @@ export interface Database {
           is_unlocked_by_default: boolean;
           unlock_condition: Record<string, unknown> | null;
         };
-        Insert: Omit<Database['public']['Tables']['interviewer_personas']['Row'], 'id'>;
+        Insert: Omit<Database['public']['Tables']['interviewer_personas']['Row'], 'id' | 'cast_no'> & { cast_no?: number };
         Update: Partial<Database['public']['Tables']['interviewer_personas']['Insert']>;
         Relationships: [];
       };

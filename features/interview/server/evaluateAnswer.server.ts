@@ -190,7 +190,7 @@ export async function evaluateAnswer(sessionQuestionId: string, formData: FormDa
       .eq('session_id', sq.session_id)
       .not('answered_at', 'is', null)
       .order('answered_at'),
-    supabase.from('interviewer_personas').select('mode, role, label_ko, position_ko, tone_description'),
+    supabase.from('interviewer_personas').select('mode, role, cast_no, label_ko, position_ko, tone_description'),
   ]);
   if (!session) throw new Error('세션을 찾을 수 없습니다.');
   if (session.status !== 'in_progress') throw new Error('이미 끝난 면접입니다.');
@@ -256,7 +256,7 @@ ${coverLetter ? `[지원자 자기소개서 요약] ${JSON.stringify(coverLetter
 [면접 유형] ${INTERVIEW_TYPE_INFO[session.interview_type ?? 'general'].focus}${session.with_peers && !PEER_REQUIRED.includes(session.interview_type) ? '\n다대다 면접: 같은 질문에 답한 다른 지원자와 비교해 차별성, 구체성, 기관 이해도를 본다. 앞 지원자 답변을 되풀이하면 감점한다.' : ''}
 ${session.group_setup ? `[${session.interview_type === 'debate' ? '논제' : '과제'}] ${session.group_setup.topic}${session.group_setup.userSide ? `\n지원자(평가 대상)는 ${session.group_setup.userSide} 측, 다른 지원자들은 ${session.group_setup.peerSide} 측` : ''}` : ''}
 [면접관 말투] ${MODE_TONE[session.mode as InterviewMode]}
-${(personas ?? []).filter((p) => p.mode === session.mode && roles.includes(p.role as InterviewerRole))
+${(personas ?? []).filter((p) => p.mode === session.mode && p.cast_no === session.cast_no && roles.includes(p.role as InterviewerRole))
   .map((p) => `- ${p.role}: ${p.label_ko}${p.position_ko ? `(${p.position_ko})` : ''}. ${p.tone_description ?? ''}`).join('\n')}
 
 [이전 문답]

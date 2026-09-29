@@ -10,6 +10,7 @@ import { Portrait, type Mood } from './Portrait';
 interface Props {
   mode: InterviewMode;
   role: InterviewerRole;
+  cast?: number;       // 면접관 기수 (애니 2기 = 2)
   mood?: Mood;         // 일러스트 표정
   name: string;
   favor: number;
@@ -46,7 +47,7 @@ export function useVoiceLevel(active: boolean, getLevel: (() => number) | undefi
 
 export const BARS = [0.5, 0.8, 1, 0.8, 0.5];
 
-export function InterviewerPanel({ mode, role, mood, name, favor, passLine, delta, large, speaking, danger, dimmed, getLevel }: Props) {
+export function InterviewerPanel({ mode, role, cast, mood, name, favor, passLine, delta, large, speaking, danger, dimmed, getLevel }: Props) {
   const levelRef = useVoiceLevel(!!speaking, getLevel);
   const orb = useOrbColors()[role] ?? ROLE_ACCENT_HEX[role];
   const ring = danger ? '#7f1d1d' : speaking ? ROLE_COLORS[role] : undefined;
@@ -69,6 +70,7 @@ export function InterviewerPanel({ mode, role, mood, name, favor, passLine, delt
         <Portrait
           mode={mode}
           role={role}
+          cast={cast}
           mood={mood}
           sizes="(max-width: 768px) 33vw, 320px"
           fallback={<InterviewerSceneClient key={orb} color={orb} controls={false} />}

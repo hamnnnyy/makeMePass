@@ -17,6 +17,6 @@ export default async function SessionPage({ params }: { params: Promise<{ id: st
 
   const orgName = session.organizations?.name_ko ?? '';
   const passLine = session.organizations?.pass_threshold ?? 60;
-  const names = await getPersonaNames(supabase, session.mode);
+  const names = await getPersonaNames(supabase, session.mode, session.cast_no);
   return <SessionView session={session} orgName={orgName} passLine={passLine} names={names} questions={questions ?? []} />;
 }

@@ -54,7 +54,7 @@ export default async function ResultPage({ params }: { params: Promise<{ id: str
   const org = session.organizations;
   const abandoned = session.status === 'aborted';
   const [names, player] = await Promise.all([
-    getPersonaNames(supabase, session.mode),
+    getPersonaNames(supabase, session.mode, session.cast_no),
     getPlayerStats(supabase, session.user_id),
   ]);
   const result = session.result;
@@ -142,6 +142,7 @@ export default async function ResultPage({ params }: { params: Promise<{ id: str
             key={r}
             mode={session.mode}
             role={r}
+            cast={session.cast_no}
             mood={result === 'pass' ? 'happy' : r === focus ? 'upset' : 'neutral'}
             name={names[r]}
             favor={favor[r]}
@@ -268,7 +269,7 @@ export default async function ResultPage({ params }: { params: Promise<{ id: str
           </div>
           <div className={gamification.collected.length === 1 ? 'grid grid-cols-1 max-w-[10rem] mx-auto w-full' : 'grid grid-cols-3 gap-3'}>
             {gamification.collected.map((c) => (
-              <PersonaCard key={c.role} mode={session.mode} role={c.role} name={c.label_ko} collected isNew={c.isNew} />
+              <PersonaCard key={c.role} mode={session.mode} role={c.role} cast={session.cast_no} name={c.label_ko} collected isNew={c.isNew} />
             ))}
           </div>
         </div>

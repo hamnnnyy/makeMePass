@@ -16,7 +16,7 @@ export async function unlockAchievements(sessionId: string): Promise<Gamificatio
   // 이번 세션 정보
   const { data: session } = await supabase
     .from('interview_sessions')
-    .select('result, mode, ended_at, interview_type, panel_size, hr_final_score, tech_final_score, exec_final_score')
+    .select('result, mode, cast_no, ended_at, interview_type, panel_size, hr_final_score, tech_final_score, exec_final_score')
     .eq('id', sessionId)
     .single();
 
@@ -106,6 +106,7 @@ export async function unlockAchievements(sessionId: string): Promise<Gamificatio
       .from('interviewer_personas')
       .select('id, role, label_ko')
       .eq('mode', session.mode)
+      .eq('cast_no', session.cast_no)
       .in('role', roles);
     const ids = (personas ?? []).map((p) => p.id);
     await admin.from('user_unlocked_personas').upsert(

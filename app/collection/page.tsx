@@ -22,7 +22,7 @@ export default async function CollectionPage({ searchParams }: { searchParams: P
   // 수집 기록·숨김 칭호는 service role 로 읽는다 (user.id 로 한정)
   const admin = createServiceClient();
   const [{ data: personas }, { data: owned }, { data: titles }, { data: earned }, { data: profile }] = await Promise.all([
-    supabase.from('interviewer_personas').select('id, mode, role, label_ko, position_ko'),
+    supabase.from('interviewer_personas').select('id, mode, role, cast_no, label_ko, position_ko'),
     admin.from('user_unlocked_personas').select('persona_id').eq('user_id', user.id),
     admin.from('achievements_master').select('id, name_ko, description, rarity, is_hidden'),
     admin.from('user_achievements').select('achievement_id, unlocked_at').eq('user_id', user.id),
@@ -101,8 +101,10 @@ export default async function CollectionPage({ searchParams }: { searchParams: P
 
       {tab === 'personas' && <div className="max-w-2xl mx-auto w-full flex flex-col gap-10">
         {INTERVIEW_MODES.map((mode) => {
-          const inMode = INTERVIEWER_ROLES.map((role) => personas?.find((p) => p.mode === mode && p.role === role));
-          const done = inMode.every((p) => p && ownedIds.has(p.id));
+          // 애니 모드처럼 기수가 여럿이면 기수마다 한 줄
+          const casts = [...new Set((personas ?? []).filter((p) => p.mode === mode).map((p) => p.cast_no))].sort();
+          const rows = casts.map((c) => INTERVIEWER_ROLES.map((role) => personas?.find((p) => p.mode === mode && p.role === role && p.cast_no === c)));
+          const done = rows.flat().every((p) => p && ownedIds.has(p.id));
           return (
             <section key={mode}>
               <div className="flex justify-between items-center border-b border-neutral-700 pb-2 mb-4">
@@ -111,16 +113,24 @@ export default async function CollectionPage({ searchParams }: { searchParams: P
                   {done ? '수집 완료' : `${MODE_LABELS[mode]} 모드로 합격하면 획득`}
                 </span>
               </div>
-              <div className="grid grid-cols-3 gap-4">
-                {inMode.map((p, i) => p && (
-                  <PersonaCard
-                    key={p.id}
-                    mode={mode}
-                    role={INTERVIEWER_ROLES[i]}
-                    name={p.label_ko}
-                    position={p.position_ko}
-                    collected={ownedIds.has(p.id)}
-                  />
+              <div className="flex flex-col gap-4">
+                {rows.map((row, k) => (
+                  <div key={casts[k]} className="flex flex-col gap-2">
+                    {casts.length > 1 && <span className="text-xs text-neutral-500">{casts[k]}기</span>}
+                    <div className="grid grid-cols-3 gap-4">
+                      {row.map((p, i) => p && (
+                        <PersonaCard
+                          key={p.id}
+                          mode={mode}
+                          role={INTERVIEWER_ROLES[i]}
+                          cast={p.cast_no}
+                          name={p.label_ko}
+                          position={p.position_ko}
+                          collected={ownedIds.has(p.id)}
+                        />
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </div>
             </section>

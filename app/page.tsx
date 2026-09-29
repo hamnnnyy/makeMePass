@@ -23,7 +23,7 @@ const STEPS = [
 
 // 면접관 모드 (그림이 있는 모드는 대표 면접관을 보여준다)
 const MODES: { mode: InterviewMode; desc: string; image?: string }[] = [
-  { mode: 'cute', desc: '일본 애니 풍 캐릭터 면접관. 답변에 따라 표정이 바뀌고 속마음이 들려요.', image: 'cute-exec' },
+  { mode: 'cute', desc: '일본 애니 풍 캐릭터 면접관 1기·2기. 답변에 따라 표정이 바뀌고 속마음이 들려요.', image: 'cute-exec' },
   { mode: 'casual', desc: '선배처럼 편하게 이끌어 주는 면접관. 첫 연습에 좋아요.', image: 'casual-hr' },
   { mode: 'realistic', desc: '실제 공기업 면접처럼 담담하고 사무적인 면접관.' },
   { mode: 'boss', desc: '날카로운 꼬리질문으로 몰아붙이는 압박 면접관.' },
@@ -89,8 +89,9 @@ export default async function LandingPage() {
 
   // 기관·질문 수는 공개 정보라 service role 로 센다 (비로그인 방문자에게도 보여 준다)
   const admin = createServiceClient();
-  const [names, casual, { count: orgCount }, { count: questionCount }] = await Promise.all([
+  const [names, names2, casual, { count: orgCount }, { count: questionCount }] = await Promise.all([
     getPersonaNames(supabase, 'cute'),
+    getPersonaNames(supabase, 'cute', 2),
     getPersonaNames(supabase, 'casual'),
     admin.from('organizations').select('id', { count: 'exact', head: true }),
     admin.from('questions').select('id', { count: 'exact', head: true }),
@@ -103,6 +104,9 @@ export default async function LandingPage() {
     { file: 'casual-hr', name: casual.hr, color: ROLE_COLORS.hr },
     { file: 'cute-exec', name: names.exec, color: ROLE_COLORS.exec },
     { file: 'peer-p1', name: `지원자 ${PEERS.p1.name}`, color: PEERS.p1.color },
+    { file: 'cute-hr2', name: names2.hr, color: ROLE_COLORS.hr },
+    { file: 'cute-tech2', name: names2.tech, color: ROLE_COLORS.tech },
+    { file: 'cute-exec2', name: names2.exec, color: ROLE_COLORS.exec },
   ];
 
   return (

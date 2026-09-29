@@ -25,8 +25,8 @@ function speakWithBrowser(text: string, role: Speaker, language: TtsLanguage): P
   });
 }
 
-// mode: 모드마다 면접관 캐릭터와 목소리가 다르다
-export function useTTS(mode: InterviewMode, language: TtsLanguage = 'kor') {
+// mode·cast: 모드와 기수마다 면접관 캐릭터와 목소리가 다르다
+export function useTTS(mode: InterviewMode, language: TtsLanguage = 'kor', cast = 1) {
   const [speaking, setSpeaking] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const ctxRef = useRef<AudioContext | null>(null);
@@ -73,12 +73,12 @@ export function useTTS(mode: InterviewMode, language: TtsLanguage = 'kor') {
     setSpeaking(true);
 
     try {
-      const cacheKey = `${mode}:${role}:${text}`;
+      const cacheKey = `${mode}:${cast}:${role}:${text}`;
       let src = getCachedAudio(cacheKey) ?? null;
 
       if (!src) {
         const { ttsSpeak } = await import('./ttsSpeak.server');
-        src = await ttsSpeak(text, role, mode, language).catch(() => null);
+        src = await ttsSpeak(text, role, mode, language, cast).catch(() => null);
         if (src) setCachedAudio(cacheKey, src);
       }
 
@@ -94,26 +94,34 @@ export function useTTS(mode: InterviewMode, language: TtsLanguage = 'kor') {
       audioRef.current = audio;
       await attachAnalyser(audio);
       const played = await new Promise<boolean>((resolve) => {
-        audio.onended = () => resolve(true);
-        audio.onerror = () => resolve(false);
-        audio.play().catch(() => resolve(false));
+        // 끝났다는 신호가 오지 않으면 면접이 멈춘다 → 불러오기 15초, 재생은 길이 + 3초가 지나면 넘어간다
+        let timer = setTimeout(() => resolve(true), 15_000);
+        const done = (ok: boolean) => { clearTimeout(timer); resolve(ok); };
+        audio.onloadedmetadata = () => {
+          clearTimeout(timer);
+          timer = setTimeout(() => resolve(true), (Number.isFinite(audio.duration) ? audio.duration : 30) * 1000 + 3000);
+        };
+        audio.onended = () => done(true);
+        audio.onerror = () => done(false);
+        audio.play().catch(() => done(false));
       });
+      audio.pause();
       if (!played) await speakWithBrowser(text, role, language);
     } finally {
       audioRef.current = null;
       analyserRef.current = null;
       setSpeaking(false);
     }
-  }, [stop, attachAnalyser, mode, language]);
+  }, [stop, attachAnalyser, mode, language, cast]);
 
   // 답변하는 동안 다음 질문 음성을 미리 받아 둔다 (Gemini TTS 는 한 문장에 수 초 걸림)
   const prefetch = useCallback(async (text: string, role: Speaker) => {
-    const cacheKey = `${mode}:${role}:${text}`;
+    const cacheKey = `${mode}:${cast}:${role}:${text}`;
     if (getCachedAudio(cacheKey)) return;
     const { ttsSpeak } = await import('./ttsSpeak.server');
-    const src = await ttsSpeak(text, role, mode, language).catch(() => null);
+    const src = await ttsSpeak(text, role, mode, language, cast).catch(() => null);
     if (src) setCachedAudio(cacheKey, src);
-  }, [mode, language]);
+  }, [mode, language, cast]);
 
   return { speak, stop, prefetch, speaking, getLevel };
 }

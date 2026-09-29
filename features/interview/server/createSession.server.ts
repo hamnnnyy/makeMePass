@@ -7,7 +7,7 @@ import { MODELS } from '@/lib/gemini/models';
 import { sampleN } from '@/lib/utils/sample';
 import { CLOSING_QUESTION, CLOSING_QUESTION_EN, GROUP_CLOSING_QUESTION, GROUP_CLOSING_QUESTION_EN, INTRO_QUESTION, INTRO_QUESTION_EN, SEQUENCE_STEP } from '@/lib/constants/interview';
 import { INTERVIEWER_ROLES, type InterviewerRole } from '@/lib/constants/roles';
-import type { InterviewMode } from '@/lib/constants/modes';
+import { CAST_COUNT, type InterviewMode } from '@/lib/constants/modes';
 import { INTERVIEW_TYPES, INTERVIEW_TYPE_INFO, IT_TRACK_NOTE, PEER_OPTIONAL, PEER_REQUIRED, PT_TOPIC_PREFIX, SOLO_ROLE, TURN_TYPES, type InterviewType } from '@/lib/constants/interviewTypes';
 import type { PeerId, PeerTurn } from '@/lib/constants/peers';
 import { orgBrief } from '../logic/orgBrief';
@@ -87,7 +87,7 @@ export default async function createSession(
   questionCount: number,
   coverLetterFile: File | null,
   // 면접 형식: AI 지원자 참여, 면접관 수, 영어 진행
-  format: { withPeers: boolean; panelSize: 1 | 3; english: boolean; track?: 'general' | 'it' } = { withPeers: false, panelSize: 3, english: false },
+  format: { withPeers: boolean; panelSize: 1 | 3; english: boolean; track?: 'general' | 'it'; cast?: number } = { withPeers: false, panelSize: 3, english: false },
 ) {
   const supabase = await createClient();
 
@@ -309,6 +309,8 @@ function discussionPlan(english: boolean): Planned[] {
       with_peers: withPeers,
       panel_size: panelSize,
       track: it ? 'it' : 'general',
+      // 면접관 기수: 고른 값, 0(랜덤)이면 무작위. 기수가 하나뿐인 모드는 1.
+      cast_no: CAST_COUNT[mode] > 1 ? (format.cast && format.cast <= CAST_COUNT[mode] ? format.cast : 1 + Math.floor(Math.random() * CAST_COUNT[mode])) : 1,
       status: 'in_progress' as const,
       result: 'pending' as const,
       total_questions: planned.length,

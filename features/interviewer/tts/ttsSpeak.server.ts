@@ -3,7 +3,7 @@
 import { createHash } from 'node:crypto';
 import { after } from 'next/server';
 import { synthesize, type TtsLanguage } from '@/lib/typecast/client';
-import { INTERVIEWER_VOICES, PEER_VOICES } from '@/lib/typecast/voices';
+import { PEER_VOICES, interviewerVoice } from '@/lib/typecast/voices';
 import { createClient as createServiceClient } from '@/lib/supabase/service-role';
 import { isPeer, type Speaker } from '@/lib/constants/peers';
 import type { InterviewMode } from '@/lib/constants/modes';
@@ -14,9 +14,9 @@ let disabled = !process.env.TYPECAST_API_KEY;
 
 // 재생할 음성 주소. 캐시에 있으면 공개 URL, 새로 만들면 data URL(저장은 뒤에서).
 // 실패하면 null → 클라이언트가 브라우저 음성으로 읽는다.
-export async function ttsSpeak(text: string, speaker: Speaker, mode: InterviewMode, language: TtsLanguage = 'kor'): Promise<string | null> {
+export async function ttsSpeak(text: string, speaker: Speaker, mode: InterviewMode, language: TtsLanguage = 'kor', cast = 1): Promise<string | null> {
   if (disabled || !text.trim()) return null;
-  const voice = isPeer(speaker) ? PEER_VOICES[speaker] : INTERVIEWER_VOICES[mode][speaker];
+  const voice = isPeer(speaker) ? PEER_VOICES[speaker] : interviewerVoice(mode, speaker, cast);
   const path = `${voice}/${language}-${createHash('sha1').update(text).digest('hex')}.mp3`;
   const storage = createServiceClient().storage.from(BUCKET);
   const url = storage.getPublicUrl(path).data.publicUrl;

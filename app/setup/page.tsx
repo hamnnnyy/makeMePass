@@ -6,7 +6,8 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Paperclip } from 'lucide-react';
 import type { InterviewMode } from '@/lib/constants/modes';
-import { MODE_LABELS } from '@/lib/constants/modes';
+import { CAST_COUNT, MODE_LABELS } from '@/lib/constants/modes';
+import { personaUrl } from '@/features/interviewer/components/Portrait';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { BLIND_NOTICE } from '@/lib/constants/disqualify';
 import { OrgPicker } from '@/features/interview/components/OrgPicker';
@@ -83,6 +84,7 @@ export default function SetupPage() {
   const [panelSize, setPanelSize] = useState<1 | 3>(3);
   const [inEnglish, setInEnglish] = useState(false);
   const [track, setTrack] = useState<'general' | 'it'>('general');
+  const [cast, setCast] = useState(0);  // 애니 모드 면접관 기수 (0 = 랜덤)
   const [coverLetterFile, setCoverLetterFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [starting, setStarting] = useState(false);
@@ -100,7 +102,7 @@ export default function SetupPage() {
 
   // 토론·토의는 늘 AI 지원자와 함께, PT 는 혼자 발표
   const withPeers = PEER_REQUIRED.includes(interviewType) || (peerChoice && PEER_OPTIONAL.includes(interviewType));
-  const format = { withPeers, panelSize, english: inEnglish, track };
+  const format = { withPeers, panelSize, english: inEnglish, track, cast };
 
   const canNext =
     (step === 1 && orgId !== null) ||
@@ -159,6 +161,35 @@ export default function SetupPage() {
                 </button>
               ))}
             </div>
+
+            {/* 애니 모드는 면접관 기수(1기·2기)를 고른다 */}
+            {mode && CAST_COUNT[mode] > 1 && (
+              <div className="mt-8 flex flex-col gap-3">
+                <span className="text-sm text-neutral-300">면접관 구성</span>
+                <div role="radiogroup" aria-label="면접관 구성" className="grid grid-cols-3 gap-3">
+                  {[0, 1, 2].map((c) => (
+                    <button
+                      key={c}
+                      role="radio"
+                      aria-checked={cast === c}
+                      onClick={() => setCast(c)}
+                      className={`rounded-2xl px-3 py-4 flex flex-col items-center gap-3 transition-all ${cast === c ? 'ring-2 ring-pink-500 bg-pink-500/10' : 'bg-neutral-800/80 hover:bg-neutral-700/80'}`}
+                    >
+                      <span className="flex -space-x-3">
+                        {c === 0 ? (
+                          <span className="size-11 rounded-full bg-neutral-700 flex items-center justify-center font-display text-xl">?</span>
+                        ) : (['hr', 'tech', 'exec'] as const).map((r) => (
+                          <span key={r} className="relative size-11 rounded-full overflow-hidden ring-2 ring-night bg-neutral-800">
+                            <Image src={personaUrl(`${mode}-${r}${c > 1 ? c : ''}`)} alt="" fill sizes="88px" className="object-cover object-[50%_18%] scale-150 origin-top" />
+                          </span>
+                        ))}
+                      </span>
+                      <span className="text-sm">{c === 0 ? '랜덤' : `${c}기`}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 

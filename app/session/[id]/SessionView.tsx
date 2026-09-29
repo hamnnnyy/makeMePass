@@ -101,7 +101,7 @@ export function SessionView({
   const recorder = useRecorder();
   // 영어로 진행하는 면접은 면접관·AI 지원자가 영어로 말한다
   const english = session.language === 'en';
-  const { speak, prefetch, getLevel } = useTTS(session.mode, english ? 'eng' : 'kor');
+  const { speak, prefetch, getLevel } = useTTS(session.mode, english ? 'eng' : 'kor', session.cast_no);
   const [speaker, setSpeaker] = useState<Speaker | null>(null);
   const [peerLine, setPeerLine] = useState<{ peer: PeerId; text: string } | null>(null);  // AI 지원자 자막
   const hasPeers = session.with_peers;
@@ -299,7 +299,7 @@ export function SessionView({
       {/* Interviewer panels */}
       <div className={roles.length === 1 ? 'grid grid-cols-1 w-full max-w-xs mx-auto' : 'grid grid-cols-3 gap-4'}>
         {roles.map((role) => (
-          <InterviewerPanel key={role} mode={session.mode} role={role} mood={moodOf(deltas?.values[role])}
+          <InterviewerPanel key={role} mode={session.mode} role={role} cast={session.cast_no} mood={moodOf(deltas?.values[role])}
             name={names[role]} favor={favor[role]} passLine={passLine}
             delta={deltas ? { value: deltas.values[role], key: deltas.key } : undefined} speaking={speaker === role}
             dimmed={speaker !== null && speaker !== role} getLevel={getLevel} />

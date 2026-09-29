@@ -5,6 +5,7 @@ import { Portrait } from './Portrait';
 interface Props {
   mode: InterviewMode;
   role: InterviewerRole;
+  cast?: number;
   name: string;
   position?: string | null;
   collected: boolean;
@@ -12,7 +13,7 @@ interface Props {
 }
 
 // 도감 카드. WebGL 캔버스를 여러 개 띄우면 브라우저 컨텍스트 한도에 걸려서 CSS 구체로 그린다.
-export function PersonaCard({ mode, role, name, position, collected, isNew }: Props) {
+export function PersonaCard({ mode, role, cast, name, position, collected, isNew }: Props) {
   const accent = ROLE_ACCENT_HEX[role];
   return (
     <div
@@ -27,6 +28,7 @@ export function PersonaCard({ mode, role, name, position, collected, isNew }: Pr
         <Portrait
           mode={mode}
           role={role}
+          cast={cast}
           silhouette={!collected}
           sizes="(max-width: 768px) 33vw, 240px"
           fallback={

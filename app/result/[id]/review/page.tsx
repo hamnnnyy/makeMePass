@@ -69,13 +69,13 @@ function Orb({ role, size = 28 }: { role: InterviewerRole; size?: number }) {
 }
 
 // 면접관 얼굴 아바타. 일러스트가 없으면 구슬.
-function Avatar({ mode, role, delta, size }: { mode: InterviewMode; role: InterviewerRole; delta?: number; size: number }) {
+function Avatar({ mode, role, cast, delta, size }: { mode: InterviewMode; role: InterviewerRole; cast: number; delta?: number; size: number }) {
   return (
     <span
       className="relative rounded-full overflow-hidden shrink-0 inline-block bg-neutral-800"
       style={{ width: size, height: size, boxShadow: `0 0 0 1.5px ${ROLE_COLORS[role]}` }}
     >
-      <Portrait mode={mode} role={role} mood={moodOf(delta)} face sizes={`${size * 3}px`} fallback={<Orb role={role} size={size} />} />
+      <Portrait mode={mode} role={role} cast={cast} mood={moodOf(delta)} face sizes={`${size * 3}px`} fallback={<Orb role={role} size={size} />} />
     </span>
   );
 }
@@ -100,14 +100,15 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
   const supabase = await createClient();
 
   const [{ data: session }, { data: questions }] = await Promise.all([
-    supabase.from('interview_sessions').select('mode, interview_type, panel_size, group_setup, organizations(pass_threshold)').eq('id', id).single(),
+    supabase.from('interview_sessions').select('mode, cast_no, interview_type, panel_size, group_setup, organizations(pass_threshold)').eq('id', id).single(),
     supabase
       .from('session_questions')
       .select('id, sequence, question_text, asked_by_role, is_follow_up, transcript, filler_count, audio_url, score_content, score_fluency, score_eye_contact, score_expression, score_timing, hr_delta, tech_delta, exec_delta, hr_after, tech_after, exec_after, claude_feedback, peer_turns, answered_at')
       .eq('session_id', id)
       .order('sequence'),
   ]);
-  const names = session ? await getPersonaNames(supabase, session.mode) : ROLE_LABELS;
+  const names = session ? await getPersonaNames(supabase, session.mode, session.cast_no) : ROLE_LABELS;
+  const cast = session?.cast_no ?? 1;
   const mode: InterviewMode = session?.mode ?? 'realistic';
   // 들어온 면접관만 보여준다 (면접관 1명 면접은 그 한 명)
   const roles = session ? panelRoles(session) : [...INTERVIEWER_ROLES];
@@ -229,7 +230,7 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
                   style={{ background: up ? '#2a0f1f' : '#141a24', borderColor: up ? '#f472b655' : '#60a5fa33' }}
                 >
                   <div className="flex items-center gap-2">
-                    <Avatar mode={mode} role={m.role} delta={m.delta} size={44} />
+                    <Avatar mode={mode} cast={cast} role={m.role} delta={m.delta} size={44} />
                     <div className="flex flex-col min-w-0">
                       <span className="text-[11px] font-bold truncate" style={{ color: ROLE_COLORS[m.role] }}>{names[m.role]}</span>
                       <span className={`text-sm font-bold ${up ? 'text-pink-300' : 'text-sky-300'}`}>{up ? '♥ ' : '💔 '}{m.kind}</span>
@@ -328,7 +329,7 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
                           const d = q[`${r}_delta`] as number;
                           return (
                             <div key={r} className="flex items-end gap-2">
-                              <Avatar mode={mode} role={r} delta={d} size={36} />
+                              <Avatar mode={mode} cast={cast} role={r} delta={d} size={36} />
                               <div className="flex flex-col gap-0.5 min-w-0">
                                 <span className="text-[10px] font-bold" style={{ color: ROLE_COLORS[r] }}>
                                   {names[r]} <span className={d > 0 ? 'text-pink-400' : d < 0 ? 'text-sky-400' : 'text-neutral-500'}>{d > 0 ? `♥ +${d}` : d < 0 ? `💔 ${d}` : '·'}</span>

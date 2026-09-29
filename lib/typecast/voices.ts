@@ -14,6 +14,14 @@ export const INTERVIEWER_VOICES: Record<InterviewMode, Record<InterviewerRole, s
   boss: { hr: 'tc_684a7a1446e2a628b5b07230', tech: 'tc_68d4b115f0486108a7eefb37', exec: 'tc_6a867e6bd49b8f6a07db59da' },
 };
 
+// 애니 2기: 소악마 후배(나나) · 무표정 천재(보라) · 학생회장 위원장(설화) — Claude 선택, 바꾸고 싶으면 여기만 고친다
+export const CAST2_VOICES: Partial<Record<InterviewMode, Record<InterviewerRole, string>>> = {
+  cute: { hr: 'tc_6076e25ac80469168e3771cf', tech: 'tc_618203f635ea62f8574c7d8a', exec: 'tc_6731b307df12333201d12b94' },
+};
+
+export const interviewerVoice = (mode: InterviewMode, role: InterviewerRole, cast = 1) =>
+  (cast > 1 && CAST2_VOICES[mode]?.[role]) || INTERVIEWER_VOICES[mode][role];
+
 // AI 지원자: 강민준(상우) · 윤서아(은채) — 사용자 선택
 export const PEER_VOICES: Record<PeerId, string> = {
   p1: 'tc_6243facd089d0be613ffe643',
