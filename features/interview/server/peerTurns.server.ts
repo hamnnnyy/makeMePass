@@ -3,7 +3,7 @@
 import { generateWithFallback } from '@/lib/gemini/client';
 import { MODELS } from '@/lib/gemini/models';
 import { createClient } from '@/lib/supabase/server';
-import { INTERVIEW_TYPE_INFO } from '@/lib/constants/interviewTypes';
+import { INTERVIEW_TYPE_INFO, SIDE_EN } from '@/lib/constants/interviewTypes';
 import { PEERS, type PeerTurn } from '@/lib/constants/peers';
 import { orgBrief } from '../logic/orgBrief';
 import { stripNames } from '../logic/peerText';
@@ -12,11 +12,11 @@ import { stripNames } from '../logic/peerText';
 const LEVELS = ['인상적인 답변 (구체적 경험과 수치, 기관 연결)', '평범한 답변 (무난하지만 구체성 부족)', '아쉬운 답변 (추상적이거나 질문 의도와 조금 어긋남)'];
 const pick = <T,>(xs: T[]) => xs[Math.floor(Math.random() * xs.length)];
 // 모델이 길이를 넘기면 마지막 문장 끝에서 자른다 (음성으로 읽기 때문에 길면 흐름이 늘어진다)
-const MAX_CHARS = 220;
-function trim(text: string) {
+const MAX_CHARS = { ko: 220, en: 360 };
+function trim(text: string, max: number) {
   const t = text.trim();
-  if (t.length <= MAX_CHARS) return t;
-  const cut = t.slice(0, MAX_CHARS);
+  if (t.length <= max) return t;
+  const cut = t.slice(0, max);
   const end = Math.max(cut.lastIndexOf('.'), cut.lastIndexOf('?'), cut.lastIndexOf('!'));
   return end > 60 ? cut.slice(0, end + 1) : `${cut}…`;
 }
@@ -36,7 +36,7 @@ export async function getPeerTurns(sessionQuestionId: string): Promise<Required<
 
   const [{ data: session }, { data: history }] = await Promise.all([
     supabase.from('interview_sessions')
-      .select('interview_type, group_setup, organizations(name_ko, description, core_values, talent_profile)')
+      .select('interview_type, group_setup, language, organizations(name_ko, description, core_values, talent_profile)')
       .eq('id', sq.session_id)
       .single(),
     supabase.from('session_questions')
@@ -49,6 +49,8 @@ export async function getPeerTurns(sessionQuestionId: string): Promise<Required<
   const org = session.organizations as unknown as { name_ko: string; description: string | null; core_values: unknown; talent_profile: unknown };
   const setup = session.group_setup;
   const type = session.interview_type;
+  const english = session.language === 'en';
+  const side = (s?: string) => (english && s ? `${s}(${SIDE_EN[s] ?? s})` : s);
 
   const log = (history ?? []).map((h) => [
     `[진행] ${h.question_text}`,
@@ -62,12 +64,15 @@ export async function getPeerTurns(sessionQuestionId: string): Promise<Required<
   }));
 
   const prompt = `${orgBrief(org)}\n\n위 기관 신입 공채 ${INTERVIEW_TYPE_INFO[type].label}에 함께 참여한 가상 지원자들의 발언을 쓰세요. 기관 정보를 아는 지원자답게 말하되, 지원자마다 이해 수준은 다르다.
-실제 사람이 말하듯 구어체 존댓말로, 한 발언은 ${type === 'group' ? '20초 안팎(100~170자)' : '15초 안팎(70~130자)'}이고 이 글자 수를 넘기지 않는다.
-누구도 이름을 말하지 않는다. 다른 사람은 ${type === 'debate' ? "'찬성 측 지원자님'처럼 편으로" : "'앞 지원자님'처럼"} 부르고, 평가받는 실제 지원자는 '지원자님'이라고 부른다.
+${english
+  ? `영어로 진행하는 면접이다. 발언은 실제 사람이 말하듯 자연스럽고 정중한 영어로 쓰고, 한 발언은 ${type === 'group' ? '20초 안팎(40~55단어)' : '15초 안팎(30~40단어)'}을 넘기지 않는다.
+누구도 이름을 말하지 않는다. 다른 사람은 ${type === 'debate' ? "'the affirmative side'처럼 편으로" : "'the previous candidate'처럼"} 부른다.`
+  : `실제 사람이 말하듯 구어체 존댓말로, 한 발언은 ${type === 'group' ? '20초 안팎(100~170자)' : '15초 안팎(70~130자)'}이고 이 글자 수를 넘기지 않는다.
+누구도 이름을 말하지 않는다. 다른 사람은 ${type === 'debate' ? "'찬성 측 지원자님'처럼 편으로" : "'앞 지원자님'처럼"} 부르고, 평가받는 실제 지원자는 '지원자님'이라고 부른다.`}
 
 [지원자 성격]
 ${turns.map((t) => `- ${t.peer} (${PEERS[t.peer].name}): ${PEERS[t.peer].style}`).join('\n')}
-${setup ? `\n[${type === 'debate' ? '논제' : '과제'}] ${setup.topic}${setup.userSide ? `\n실제 지원자는 ${setup.userSide} 측, 가상 지원자들은 ${setup.peerSide} 측` : ''}` : ''}
+${setup ? `\n[${type === 'debate' ? '논제' : '과제'}] ${setup.topic}${setup.userSide ? `\n실제 지원자는 ${side(setup.userSide)} 측, 가상 지원자들은 ${side(setup.peerSide)} 측` : ''}` : ''}
 
 [지금까지 진행]
 ${log || '(처음)'}
@@ -90,7 +95,7 @@ ${turns.map((t, i) => `${i + 1}. ${t.peer}: ${t.guide}`).join('\n')}`;
     },
   });
   const lines = (JSON.parse(res.text ?? '{}') as { lines?: string[] }).lines ?? [];
-  const filled = plan.map((t, i) => ({ ...t, text: trim(stripNames(lines[i] ?? '')) || '저도 같은 생각입니다.' }));
+  const filled = plan.map((t, i) => ({ ...t, text: trim(stripNames(lines[i] ?? ''), MAX_CHARS[session.language]) || (english ? 'I agree with that.' : '저도 같은 생각입니다.') }));
 
   await supabase.from('session_questions').update({ peer_turns: filled }).eq('id', sessionQuestionId);
   return filled;

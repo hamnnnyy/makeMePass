@@ -67,10 +67,11 @@ export interface Database {
           interview_type: 'general' | 'personality' | 'job' | 'executive' | 'pt' | 'group' | 'debate' | 'discussion' | 'english';  // migrations/20260928010000, 20260928020000
           group_setup: { topic: string; userSide?: string; peerSide?: string } | null;  // 토론·토의 주제와 편
           disqualification: { type: 'blind' | 'conduct'; quote: string; detail: string; question: string; role: InterviewerRole } | null;  // 실격 사유
+          language: 'ko' | 'en';  // 진행 언어, migrations/20260929020000
           started_at: string;
           ended_at: string | null;
         };
-        Insert: Omit<Database['public']['Tables']['interview_sessions']['Row'], 'id' | 'started_at' | 'interview_type' | 'group_setup' | 'disqualification'> & { interview_type?: Database['public']['Tables']['interview_sessions']['Row']['interview_type']; group_setup?: Database['public']['Tables']['interview_sessions']['Row']['group_setup']; disqualification?: Database['public']['Tables']['interview_sessions']['Row']['disqualification'] };
+        Insert: Omit<Database['public']['Tables']['interview_sessions']['Row'], 'id' | 'started_at' | 'interview_type' | 'group_setup' | 'disqualification' | 'language'> & { language?: 'ko' | 'en'; interview_type?: Database['public']['Tables']['interview_sessions']['Row']['interview_type']; group_setup?: Database['public']['Tables']['interview_sessions']['Row']['group_setup']; disqualification?: Database['public']['Tables']['interview_sessions']['Row']['disqualification'] };
         Update: Partial<Database['public']['Tables']['interview_sessions']['Insert']>;
         Relationships: [
           { foreignKeyName: 'interview_sessions_organization_id_fkey'; columns: ['organization_id']; isOneToOne: false; referencedRelation: 'organizations'; referencedColumns: ['id'] },

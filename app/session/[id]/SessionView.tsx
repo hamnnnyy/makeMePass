@@ -22,7 +22,7 @@ import { SelfCam } from '@/features/interview/components/SelfCam';
 import { endSession } from '@/features/interview/server/endSession.server';
 import { evaluateAnswer } from '@/features/interview/server/evaluateAnswer.server';
 import type { FavorState } from '@/features/interview/server/evaluateAnswer.server';
-import { PEER_TYPES, PT_INTRO_LINE, PT_PREP_SEC, PT_TOPIC_PREFIX } from '@/lib/constants/interviewTypes';
+import { PEER_TYPES, PT_INTRO_LINE, SIDE_EN, PT_PREP_SEC, PT_TOPIC_PREFIX } from '@/lib/constants/interviewTypes';
 import { PEERS, isPeer, type PeerId, type Speaker } from '@/lib/constants/peers';
 import { getPeerTurns } from '@/features/interview/server/peerTurns.server';
 import { PeerSeat } from '@/features/interview/components/PeerSeat';
@@ -96,8 +96,8 @@ export function SessionView({
   const timerFmt = useTimer(phase !== 'lobby' && phase !== 'ending');
   const { videoRef, error: camError } = useMediaStream();
   const recorder = useRecorder();
-  // 영어면접은 면접관이 영어로 말한다
-  const english = session.interview_type === 'english';
+  // 영어로 진행하는 면접은 면접관·AI 지원자가 영어로 말한다
+  const english = session.language === 'en';
   const { speak, prefetch, getLevel } = useTTS(session.mode, english ? 'eng' : 'kor');
   const [speaker, setSpeaker] = useState<Speaker | null>(null);
   const [peerLine, setPeerLine] = useState<{ peer: PeerId; text: string } | null>(null);  // AI 지원자 자막
@@ -177,8 +177,11 @@ export function SessionView({
       setPhase('speaking');
       await say(english ? greetingLineEn(orgName) : greetingLine(orgName), 'exec');
       if (setup && (session.interview_type === 'debate' || session.interview_type === 'discussion')) {
+        const title = setup.topic.split('\n')[0];
         const kind = session.interview_type === 'debate' ? '논제' : '과제';
-        await say(`오늘의 ${kind}는 ${setup.topic.split('\n')[0]} 입니다.${setup.userSide ? ` 지원자님은 ${setup.userSide} 측입니다.` : ''}`, 'exec');
+        await say(english
+          ? `Today's ${session.interview_type === 'debate' ? 'motion' : 'task'} is: ${title}${setup.userSide ? ` You are on the ${SIDE_EN[setup.userSide] ?? setup.userSide} side.` : ''}`
+          : `오늘의 ${kind}는 ${title} 입니다.${setup.userSide ? ` 지원자님은 ${setup.userSide} 측입니다.` : ''}`, 'exec');
       }
     }
     await ask(startIdx);

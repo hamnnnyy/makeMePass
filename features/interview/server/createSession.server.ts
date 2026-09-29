@@ -8,7 +8,7 @@ import { sampleN } from '@/lib/utils/sample';
 import { CLOSING_QUESTION, CLOSING_QUESTION_EN, INTRO_QUESTION, INTRO_QUESTION_EN, SEQUENCE_STEP } from '@/lib/constants/interview';
 import { INTERVIEWER_ROLES, type InterviewerRole } from '@/lib/constants/roles';
 import type { InterviewMode } from '@/lib/constants/modes';
-import { INTERVIEW_TYPES, INTERVIEW_TYPE_INFO, PT_TOPIC_PREFIX, TURN_TYPES, type InterviewType } from '@/lib/constants/interviewTypes';
+import { INTERVIEW_TYPES, INTERVIEW_TYPE_INFO, PEER_TYPES, PT_TOPIC_PREFIX, TURN_TYPES, type InterviewType } from '@/lib/constants/interviewTypes';
 import type { PeerId, PeerTurn } from '@/lib/constants/peers';
 import { orgBrief } from '../logic/orgBrief';
 
@@ -84,6 +84,7 @@ export default async function createSession(
   interviewType: InterviewType,
   questionCount: number,
   coverLetterFile: File | null,
+  inEnglish = false,  // 다대다·토론·토의를 영어로 진행
 ) {
   const supabase = await createClient();
 
@@ -108,12 +109,12 @@ export default async function createSession(
     .single();
   if (orgError || !org) throw new Error(`기관을 찾을 수 없습니다: ${orgCode}`);
 // 토론 논제 / 토의 과제: 기관 사업·공공 이슈와 연결
-async function makeGroupTopic(brief: string, type: 'debate' | 'discussion'): Promise<string> {
+async function makeGroupTopic(brief: string, type: 'debate' | 'discussion', english: boolean): Promise<string> {
   const ask = type === 'debate'
     ? '찬반이 분명히 갈리는 토론면접 논제를 하나 만드세요. "~해야 한다" 형태의 한 문장 논제와, 양측 입장을 이해할 배경 1~2문장.'
     : '지원자들이 함께 해결책을 합의해야 하는 토의면접 과제를 하나 만드세요. 구체적 상황과 합의해야 할 결과물(예: 우선 추진할 방안 한 가지)을 담은 과제 한 문장과 배경 1~2문장.';
   const res = await generateWithFallback(MODELS.evaluation, {
-    contents: `${brief}\n\n위 기관 신입 공채 ${ask} 기관의 주요 사업과 최근 현안에 연결하세요.`,
+    contents: `${brief}\n\n위 기관 신입 공채 ${ask} 기관의 주요 사업과 최근 현안에 연결하세요.${english ? ' 영어로 진행하는 면접이므로 title 과 background 는 자연스러운 영어로 쓰세요 (title 20단어 이내).' : ''}`,
     config: {
       responseMimeType: 'application/json',
       responseJsonSchema: {
@@ -128,7 +129,7 @@ async function makeGroupTopic(brief: string, type: 'debate' | 'discussion'): Pro
   });
   const t = JSON.parse(res.text ?? '{}') as { title?: string; background?: string };
   if (!t.title) throw new Error('주제를 만들지 못했습니다.');
-  return `${t.title}\n배경: ${t.background ?? ''}`;
+  return `${t.title}\n${english ? 'Background' : '배경'}: ${t.background ?? ''}`;
 }
 
 // 기관 전용 질문이 적은 기관: 기관 특징(인재상·사업·현안)으로 맞춤 질문을 만든다
@@ -164,29 +165,32 @@ async function makeOrgQuestions(brief: string, count: number, focus: string, eng
 const turn = (peer: PeerId, intent: string): PeerTurn => ({ peer, intent });
 
 // 토론: 사용자 한 편, AI 지원자 둘은 반대편. 입론 → 반론 → 재반론 → 최종 발언
-function debatePlan(peerSide: string): Planned[] {
+// 진행 멘트는 [한국어, 영어]. 발언 지시(intent)는 모델에게 주는 것이라 한국어로 둔다.
+function debatePlan(peerSide: string, english: boolean): Planned[] {
+  const t = (ko: string, en: string) => (english ? en : ko);
   return [
-    { text: '입론 시간입니다. 논제에 대한 입장과 근거를 말씀해 주세요.', role: 'exec', questionId: null,
+    { text: t('입론 시간입니다. 논제에 대한 입장과 근거를 말씀해 주세요.', 'Let us begin with opening statements. Please state your position and your reasons.'), role: 'exec', questionId: null,
       peers: [turn('p1', `입론. ${peerSide} 측 입장과 핵심 근거 두 가지`)] },
-    { text: '상대 측 입론에 대해 반론해 주세요.', role: 'tech', questionId: null,
+    { text: t('상대 측 입론에 대해 반론해 주세요.', 'Please give your rebuttal to the other side.'), role: 'tech', questionId: null,
       peers: [turn('p2', `입론. ${peerSide} 측 입장을 보강하고 사용자 입론의 약점 하나를 짚는다`)] },
-    { text: '방금 반론에 대한 재반론과 보완 근거를 말씀해 주세요.', role: 'hr', questionId: null,
+    { text: t('방금 반론에 대한 재반론과 보완 근거를 말씀해 주세요.', 'Please respond to that rebuttal and strengthen your argument.'), role: 'hr', questionId: null,
       peers: [turn('p1', '반론. 사용자의 직전 발언을 구체적으로 인용해 반박한다')] },
-    { text: '최종 발언을 해 주세요.', role: 'exec', questionId: null,
+    { text: t('최종 발언을 해 주세요.', 'Please give your closing statement.'), role: 'exec', questionId: null,
       peers: [turn('p2', `최종 발언. ${peerSide} 측 입장을 정리한다`)] },
   ];
 }
 
 // 토의: 문제 정의 → 방안 제시 → 의견 조율 → 합의안 정리
-function discussionPlan(): Planned[] {
+function discussionPlan(english: boolean): Planned[] {
+  const t = (ko: string, en: string) => (english ? en : ko);
   return [
-    { text: '과제를 확인하셨죠. 이 문제를 어떻게 정의하면 좋을지 의견을 나눠 주세요.', role: 'exec', questionId: null,
+    { text: t('과제를 확인하셨죠. 이 문제를 어떻게 정의하면 좋을지 의견을 나눠 주세요.', 'You have seen the task. How would you define the problem? Please share your views.'), role: 'exec', questionId: null,
       peers: [turn('p1', '문제 정의. 원인을 한 가지로 단정하는 경향이 있다')] },
-    { text: '해결 방안을 제시해 주세요.', role: 'tech', questionId: null,
+    { text: t('해결 방안을 제시해 주세요.', 'Please suggest your solutions.'), role: 'tech', questionId: null,
       peers: [turn('p1', '방안 제시. 예산이 많이 드는 대규모 사업'), turn('p2', '방안 제시. 작은 시범 사업부터 하자며 p1 과 부딪힌다')] },
-    { text: '의견이 갈리고 있습니다. 어떻게 조율하면 좋을까요?', role: 'hr', questionId: null,
+    { text: t('의견이 갈리고 있습니다. 어떻게 조율하면 좋을까요?', 'Opinions are divided. How can we find common ground?'), role: 'hr', questionId: null,
       peers: [turn('p1', '자기 방안을 고집하며 사용자 의견의 약점을 지적한다'), turn('p2', '과제와 조금 벗어난 이야기로 흐름을 흐린다')] },
-    { text: '시간이 얼마 남지 않았습니다. 지금까지 논의를 정리해 합의안을 발표해 주세요.', role: 'exec', questionId: null,
+    { text: t('시간이 얼마 남지 않았습니다. 지금까지 논의를 정리해 합의안을 발표해 주세요.', 'We are almost out of time. Please sum up the discussion and present the agreed plan.'), role: 'exec', questionId: null,
       peers: [turn('p2', '누군가 정리해 주면 좋겠다며 사용자에게 정리를 넘긴다')] },
   ];
 }
@@ -195,8 +199,8 @@ function discussionPlan(): Planned[] {
   const type: InterviewType = INTERVIEW_TYPES.includes(interviewType) ? interviewType : 'general';
   const categories = INTERVIEW_TYPE_INFO[type].categories;
 
-  // 공통 질문 + question_organizations 로 이 기관에 연결된 질문. 영어면접은 영어 질문만, 나머지는 한국어 질문만.
-  const english = type === 'english';
+  // 공통 질문 + question_organizations 로 이 기관에 연결된 질문. 영어로 진행하면 영어 질문만, 아니면 한국어 질문만.
+  const english = type === 'english' || (inEnglish && PEER_TYPES.includes(type));
   const language = english ? 'en' : 'ko';
   const [{ data: general }, { data: linkedRows }] = await Promise.all([
     supabase.from('questions').select('id, text, target_role, category').eq('is_general', true).eq('language', language),
@@ -239,15 +243,15 @@ function discussionPlan(): Planned[] {
       { text: CLOSING_QUESTION, role: 'exec', questionId: null },
     ];
   } else if (type === 'debate' || type === 'discussion') {
-    const topic = await makeGroupTopic(orgBrief(org), type);
+    const topic = await makeGroupTopic(orgBrief(org), type, english);
     if (type === 'debate') {
       const userSide = Math.random() < 0.5 ? '찬성' : '반대';
       const peerSide = userSide === '찬성' ? '반대' : '찬성';
       groupSetup = { topic, userSide, peerSide };
-      planned = debatePlan(peerSide);
+      planned = debatePlan(peerSide, english);
     } else {
       groupSetup = { topic };
-      planned = discussionPlan();
+      planned = discussionPlan(english);
     }
   } else {
     // 기관 전용 질문이 적으면 기관 특징으로 맞춤 질문 두 개를 만들어 섞는다 (실패해도 면접은 진행)
@@ -275,6 +279,7 @@ function discussionPlan(): Planned[] {
       // 종합은 컬럼 기본값 사용 (interview_type 마이그레이션 전에도 동작)
       ...(type !== 'general' ? { interview_type: type } : {}),
       ...(groupSetup ? { group_setup: groupSetup } : {}),
+      language,
       status: 'in_progress' as const,
       result: 'pending' as const,
       total_questions: planned.length,

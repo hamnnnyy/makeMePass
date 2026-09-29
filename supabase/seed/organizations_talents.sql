@@ -35,4 +35,9 @@ update public.organizations set talent_profile = coalesce(talent_profile, '{}'::
 update public.organizations set talent_profile = coalesce(talent_profile, '{}'::jsonb) || '{"talentsChecked": "2026-09-29"}'::jsonb where code = 'KOMSCO';
 update public.organizations set talent_profile = coalesce(talent_profile, '{}'::jsonb) || '{"talentsChecked": "2026-09-29"}'::jsonb where code = 'KNOC';
 update public.organizations set talent_profile = coalesce(talent_profile, '{}'::jsonb) || '{"talentsChecked": "2026-09-29"}'::jsonb where code = 'KOMIPO';
+-- 2차 확인 (기관 공식 페이지·채용 공고)
+update public.organizations set talent_profile = coalesce(talent_profile, '{}'::jsonb) - 'talentsChecked' || '{"talents": ["전문인재(Learner): 안전 우선, 현장 문제 해결, 지속 학습", "혁신인재(Innovator): 기술·사업 변화를 통찰하고 새 영역에 도전", "열정인재(Enthusiast): 맡은 일을 완수하고 공동체 발전에 기여"]}'::jsonb where code = 'KR';
+update public.organizations set talent_profile = coalesce(talent_profile, '{}'::jsonb) - 'talentsChecked' || '{"talents": ["관광의 흐름을 주도하는 도전적인 사람", "변화에 유연하며 관광의 새 가치를 창출하는 사람", "공감적 소통과 개방적 협력으로 공익을 추구하는 사람", "국제 감각과 지역 이해를 갖춘 한국관광 전문가"]}'::jsonb where code = 'KTO';
+update public.organizations set core_values = '["정직한 경영", "혁신적 도전", "공유와 배려"]'::jsonb where code = 'KNOC';
+update public.organizations set talent_profile = coalesce(talent_profile, '{}'::jsonb) || '{"mission": "조폐를 산업으로 재창조하는 글로벌 선도 기업"}'::jsonb where code = 'KOMSCO';
 commit;

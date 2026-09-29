@@ -76,3 +76,6 @@ export const PT_FOLLOW_UPS = 3;
 // PT 주제 문항은 question_text 가 이 접두어로 시작한다
 export const PT_TOPIC_PREFIX = '[PT 주제] ';
 export const PT_INTRO_LINE = 'PT 면접을 시작하겠습니다. 화면의 주제를 확인하시고, 준비가 끝나면 발표를 시작해 주세요.';
+
+// 토론 편은 한국어로 저장하고, 영어로 진행할 때만 영어로 부른다
+export const SIDE_EN: Record<string, string> = { 찬성: 'affirmative', 반대: 'negative' };

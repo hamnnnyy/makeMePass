@@ -11,7 +11,7 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { BLIND_NOTICE } from '@/lib/constants/disqualify';
 import { OrgPicker } from '@/features/interview/components/OrgPicker';
 import createSession from '@/features/interview/server/createSession.server';
-import { INTERVIEW_TYPES, INTERVIEW_TYPE_INFO, TURN_TYPES, type InterviewType } from '@/lib/constants/interviewTypes';
+import { INTERVIEW_TYPES, INTERVIEW_TYPE_INFO, PEER_TYPES, TURN_TYPES, type InterviewType } from '@/lib/constants/interviewTypes';
 
 const MODES: InterviewMode[] = ['realistic', 'casual', 'boss', 'cute'];
 
@@ -47,6 +47,7 @@ export default function SetupPage() {
   const [mode, setMode] = useState<InterviewMode | null>(null);
   const [interviewType, setInterviewType] = useState<InterviewType>('general');
   const [questionCount, setQuestionCount] = useState(5);
+  const [inEnglish, setInEnglish] = useState(false);  // AI 지원자 유형을 영어로 진행
   const [coverLetterFile, setCoverLetterFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [starting, setStarting] = useState(false);
@@ -73,7 +74,7 @@ export default function SetupPage() {
     setStarting(true);
     setError(null);
     try {
-      const res = await createSession(orgId!, mode!, interviewType, questionCount, coverLetterFile);
+      const res = await createSession(orgId!, mode!, interviewType, questionCount, coverLetterFile, inEnglish);
       if (res?.error) { setError(res.error); setStarting(false); }
     } catch {
       setError('면접을 준비하지 못했습니다. 잠시 후 다시 시도해 주세요.');
@@ -150,6 +151,17 @@ export default function SetupPage() {
                 </div>
               </div>
 
+              {/* 다대다·토론·토의는 영어로도 진행할 수 있다 */}
+              {PEER_TYPES.includes(interviewType) && (
+                <label className="flex items-center justify-between gap-4 rounded-2xl bg-neutral-800/80 px-4 py-3 cursor-pointer">
+                  <span>
+                    <span className="block text-sm font-semibold">영어로 진행</span>
+                    <span className="block text-[11px] text-neutral-400 mt-1">면접관과 AI 지원자가 영어로 말하고, 영어 답변을 평가해요. 피드백은 한국어.</span>
+                  </span>
+                  <input type="checkbox" checked={inEnglish} onChange={(e) => setInEnglish(e.target.checked)} className="h-5 w-5 accent-pink-500" />
+                </label>
+              )}
+
               {/* 질문 수 — PT·토론·토의는 정해진 차례로 진행 */}
               {!TURN_TYPES.includes(interviewType) && <div>
                 <div className="flex justify-between items-center border-b border-neutral-700 pb-2 mb-6">
@@ -178,7 +190,7 @@ export default function SetupPage() {
               </div>}
 
               {/* 자기소개서 — PT·토론·토의는 주제 과제라, 영어면접은 영어 질문이라 사용하지 않음 */}
-              {!TURN_TYPES.includes(interviewType) && interviewType !== 'english' && <div>
+              {!TURN_TYPES.includes(interviewType) && interviewType !== 'english' && !(inEnglish && PEER_TYPES.includes(interviewType)) && <div>
                 <div className="flex justify-between items-center border-b border-neutral-700 pb-2 mb-6">
                   <span className="text-sm text-neutral-300">자기소개서 <span className="text-neutral-500">(선택 · PDF 5MB 이하 · 첨부 시 자소서 기반 질문 출제)</span></span>
                   {coverLetterFile && (

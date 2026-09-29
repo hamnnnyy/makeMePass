@@ -215,7 +215,7 @@ export async function evaluateAnswer(sessionQuestionId: string, formData: FormDa
 
   const role = sq.asked_by_role as InterviewerRole;
   const isClosing = isClosingQuestion(sq.question_text);
-  const english = session.interview_type === 'english';
+  const english = session.language === 'en';
   const isPt = session.interview_type === 'pt';
   // 토론·토의: 정해진 차례대로 진행하고 꼬리질문이 없다
   const isTurn = session.interview_type === 'debate' || session.interview_type === 'discussion';
@@ -263,7 +263,7 @@ ${isText ? `${nvLine}\n[지원자 답변(텍스트 입력)]\n${answerText}` : `$
 - 실제 공기업 면접처럼 엄격하게. 평범한 답변은 deltas 0 근처, 인상적이면 +, 부실하면 -.
 - 이 기관의 면접이다. 면접관마다 기관 특징을 기준으로 본다: exec 는 인재상·핵심가치·미션 부합, tech 는 주요 사업과 최근 현안 이해, hr 는 조직문화에 맞는 태도. 어느 기관에나 할 수 있는 일반론은 가점하지 않는다.
 - 답변이 없거나 질문과 무관하면 score_content 0~20, deltas는 -8 이하.${english ? `
-- 영어면접이다. 지원자는 영어로 답해야 하고, 한국어로 답하면 score_content 를 크게 깎는다.
+- 영어로 진행하는 면접이다. 지원자는 영어로 답해야 하고, 한국어로 답하면 score_content 를 크게 깎는다.
 - score_fluency 는 영어 발음·유창성·문법·어휘의 정확성과 다양성 기준으로 매긴다.
 - reaction 과 follow_up.question 은 영어 면접관이 말하듯 자연스러운 영어로 쓴다 (reaction 은 "I see.", "Thank you for your answer."처럼 8단어 이내 짧은 맞장구, 질문은 20단어 이내).
 - strengths·improvement·delta_reasons·inner_voices·org_fit_reason·violation.detail 은 한국어로 쓰고, improvement 에는 더 나은 영어 표현 예시를 영어 문장 하나로 덧붙인다.` : ''}

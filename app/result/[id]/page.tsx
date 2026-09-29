@@ -74,7 +74,7 @@ export default async function ResultPage({ params }: { params: Promise<{ id: str
     : [...INTERVIEWER_ROLES];
 
   // 영어면접은 면접관 마지막 대사도 영어
-  const en = session.interview_type === 'english';
+  const en = session.language === 'en';
   const line: [InterviewerRole, string] | null =
     abandoned ? null
     : result === 'pass' ? ['hr', en ? PASS_LINE_EN : PASS_LINE]
