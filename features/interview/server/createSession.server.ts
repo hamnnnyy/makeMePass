@@ -8,7 +8,7 @@ import { sampleN } from '@/lib/utils/sample';
 import { CLOSING_QUESTION, CLOSING_QUESTION_EN, GROUP_CLOSING_QUESTION, GROUP_CLOSING_QUESTION_EN, INTRO_QUESTION, INTRO_QUESTION_EN, SEQUENCE_STEP } from '@/lib/constants/interview';
 import { INTERVIEWER_ROLES, type InterviewerRole } from '@/lib/constants/roles';
 import type { InterviewMode } from '@/lib/constants/modes';
-import { INTERVIEW_TYPES, INTERVIEW_TYPE_INFO, PEER_OPTIONAL, PEER_REQUIRED, PT_TOPIC_PREFIX, SOLO_ROLE, TURN_TYPES, type InterviewType } from '@/lib/constants/interviewTypes';
+import { INTERVIEW_TYPES, INTERVIEW_TYPE_INFO, IT_TRACK_NOTE, PEER_OPTIONAL, PEER_REQUIRED, PT_TOPIC_PREFIX, SOLO_ROLE, TURN_TYPES, type InterviewType } from '@/lib/constants/interviewTypes';
 import type { PeerId, PeerTurn } from '@/lib/constants/peers';
 import { orgBrief } from '../logic/orgBrief';
 
@@ -87,7 +87,7 @@ export default async function createSession(
   questionCount: number,
   coverLetterFile: File | null,
   // 면접 형식: AI 지원자 참여, 면접관 수, 영어 진행
-  format: { withPeers: boolean; panelSize: 1 | 3; english: boolean } = { withPeers: false, panelSize: 3, english: false },
+  format: { withPeers: boolean; panelSize: 1 | 3; english: boolean; track?: 'general' | 'it' } = { withPeers: false, panelSize: 3, english: false },
 ) {
   const supabase = await createClient();
 
@@ -204,16 +204,21 @@ function discussionPlan(english: boolean): Planned[] {
 
   // 공통 질문 + question_organizations 로 이 기관에 연결된 질문. 영어로 진행하면 영어 질문만, 아니면 한국어 질문만.
   const english = format.english;
+  const it = format.track === 'it';
+  // 주제·맞춤 질문 생성에 넣는 기관 정보 (전산 직무면 그 관점을 덧붙인다)
+  const brief = `${orgBrief(org)}${it ? `\n- ${IT_TRACK_NOTE}` : ''}`;
   const language = english ? 'en' : 'ko';
   const [{ data: general }, { data: linkedRows }] = await Promise.all([
-    supabase.from('questions').select('id, text, target_role, category').eq('is_general', true).eq('language', language),
-    supabase.from('question_organizations').select('questions(id, text, target_role, category, language)').eq('organization_id', org.id),
+    supabase.from('questions').select('id, text, target_role, category, tags').eq('is_general', true).eq('language', language),
+    supabase.from('question_organizations').select('questions(id, text, target_role, category, language, tags)').eq('organization_id', org.id),
   ]);
   const linked = (linkedRows ?? []).filter((row) => row.questions?.language === language);
   const byId = new Map((general ?? []).map((q) => [q.id, q]));
   for (const row of linked) if (row.questions) byId.set(row.questions.id, row.questions);
   // 면접 유형에 맞는 카테고리만 (인성/직무/임원)
-  const others = [...byId.values()].filter((q) => !categories || categories.includes(q.category));
+  // 전산 질문(IT 태그)은 전산 직무를 고른 면접에만 낸다
+  const others = [...byId.values()].filter((q) => (!categories || categories.includes(q.category)) && (it || !q.tags?.includes('IT')));
+  const itPool = others.filter((q) => q.tags?.includes('IT'));
 
   // 실제 면접 순서: 1분 자기소개 → (자소서 질문) → 본 질문 → 마지막 한마디
   let coverLetterId: string | null = null;
@@ -237,12 +242,19 @@ function discussionPlan(english: boolean): Planned[] {
   const withPeers = PEER_REQUIRED.includes(type) || (format.withPeers && PEER_OPTIONAL.includes(type));
   const panelSize = format.panelSize === 1 ? 1 : 3;
 
+  // 본 질문 뽑기. 전산 직무면 절반 가까이를 전산 질문으로 채운다.
+  const pickMain = (n: number) => {
+    if (!it) return sampleN(others, n);
+    const tech = sampleN(itPool, Math.ceil(n / 2));
+    return [...tech, ...sampleN(others.filter((q) => !tech.includes(q)), n - tech.length)];
+  };
+
   let groupSetup: { topic: string; userSide?: string; peerSide?: string } | null = null;
   let planned: Planned[];
   if (type === 'pt') {
     // PT: 주제 발표 1개 + (발표에 대한 꼬리질문은 답변 평가 때 생성) + 마지막 한마디
     planned = [
-      { text: await makePtTopic(orgBrief(org), english), role: 'exec', questionId: null },
+      { text: await makePtTopic(brief, english), role: 'exec', questionId: null },
       withPeers
         // 다대다는 손 들고 먼저 나서는 AI 지원자 한 명 뒤에 내 차례
         ? { text: english ? GROUP_CLOSING_QUESTION_EN : GROUP_CLOSING_QUESTION, role: 'exec', questionId: null,
@@ -250,7 +262,7 @@ function discussionPlan(english: boolean): Planned[] {
         : { text: english ? CLOSING_QUESTION_EN : CLOSING_QUESTION, role: 'exec', questionId: null },
     ];
   } else if (type === 'debate' || type === 'discussion') {
-    const topic = await makeGroupTopic(orgBrief(org), type, english);
+    const topic = await makeGroupTopic(brief, type, english);
     if (type === 'debate') {
       const userSide = Math.random() < 0.5 ? '찬성' : '반대';
       const peerSide = userSide === '찬성' ? '반대' : '찬성';
@@ -263,10 +275,10 @@ function discussionPlan(english: boolean): Planned[] {
   } else {
     // 기관 전용 질문이 적으면 기관 특징으로 맞춤 질문 두 개를 만들어 섞는다 (실패해도 면접은 진행)
     const orgQs = linked.length < 6 && mainCount >= 3
-      ? await makeOrgQuestions(orgBrief(org), 2, INTERVIEW_TYPE_INFO[type].focus, english).catch(() => [])
+      ? await makeOrgQuestions(brief, 2, INTERVIEW_TYPE_INFO[type].focus, english).catch(() => [])
       : [];
     const main: Planned[] = sampleN([
-      ...sampleN(others, mainCount - orgQs.length).map((q) => ({ text: q.text, role: q.target_role, questionId: q.id })),
+      ...pickMain(mainCount - orgQs.length).map((q) => ({ text: q.text, role: q.target_role, questionId: q.id })),
       ...orgQs,
     ], mainCount);
     planned = [
@@ -296,6 +308,7 @@ function discussionPlan(english: boolean): Planned[] {
       language,
       with_peers: withPeers,
       panel_size: panelSize,
+      track: it ? 'it' : 'general',
       status: 'in_progress' as const,
       result: 'pending' as const,
       total_questions: planned.length,

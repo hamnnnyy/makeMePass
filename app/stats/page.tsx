@@ -47,7 +47,7 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
   // 본인 권한 클라이언트는 RLS 로 본인 답변만 보인다
   const answers = sessions.length
     ? await fetchAll<StatAnswer>((from, to) => db.from('session_questions')
-        .select('session_id, score_content, score_fluency, score_eye_contact, score_expression, score_timing, org_fit:claude_feedback->orgFit')
+        .select('session_id, score_content, score_fluency, score_eye_contact, score_expression, score_timing, org_fit:claude_feedback->orgFit, criteria:claude_feedback->criteria')
         .not('answered_at', 'is', null)
         .order('id')
         .range(from, to) as unknown as PromiseLike<{ data: StatAnswer[] | null; error: unknown }>)
@@ -117,6 +117,24 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
               </ul>
               <p className="text-[11px] text-neutral-500">전달력은 음성 답변, 시선·표정은 카메라에 얼굴이 잡힌 답변만 측정해요.</p>
             </section>
+
+            {s.habits.some((h) => h.avg !== null) && (
+              <section className="rounded-2xl bg-neutral-900 border border-neutral-800 p-5 flex flex-col gap-4">
+                <h2 className="text-sm text-neutral-300">답변 습관</h2>
+                <ul className="flex flex-col gap-3">
+                  {s.habits.map((h) => (
+                    <li key={h.key} className="grid grid-cols-[5.5rem_1fr_3rem] items-center gap-3 text-sm">
+                      <span className="text-neutral-400">{h.label}</span>
+                      <div className="h-2.5 rounded-full bg-neutral-800 overflow-hidden" role="img" aria-label={`${h.label} ${h.avg ?? '측정 없음'}`}>
+                        <div className={`h-full rounded-full ${h.key === s.weakestHabit?.key ? 'bg-pink-500' : 'bg-violet-400'}`} style={{ width: `${h.avg ?? 0}%` }} />
+                      </div>
+                      <span className="text-right tabular-nums">{h.avg ?? '-'}</span>
+                    </li>
+                  ))}
+                </ul>
+                {s.weakestHabit && <p className="text-xs text-neutral-300"><span className="text-pink-400">{s.weakestHabit.label}</span> {s.weakestHabit.tip}</p>}
+              </section>
+            )}
 
             {s.trend.length > 1 && (
               <section className="rounded-2xl bg-neutral-900 border border-neutral-800 p-5 flex flex-col gap-4">

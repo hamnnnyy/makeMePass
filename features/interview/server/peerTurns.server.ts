@@ -36,7 +36,7 @@ export async function getPeerTurns(sessionQuestionId: string): Promise<Required<
 
   const [{ data: session }, { data: history }] = await Promise.all([
     supabase.from('interview_sessions')
-      .select('interview_type, group_setup, language, organizations(name_ko, description, core_values, talent_profile)')
+      .select('interview_type, group_setup, language, track, organizations(name_ko, description, core_values, talent_profile)')
       .eq('id', sq.session_id)
       .single(),
     supabase.from('session_questions')
@@ -72,7 +72,7 @@ ${english
   : `실제 사람이 말하듯 구어체 존댓말로, 한 발언은 ${qa ? '20초 안팎(100~170자)' : '15초 안팎(70~130자)'}이고 이 글자 수를 넘기지 않는다.
 누구도 이름을 말하지 않는다. 다른 사람은 ${type === 'debate' ? "'찬성 측 지원자님'처럼 편으로" : "'앞 지원자님'처럼"} 부르고, 평가받는 실제 지원자는 '지원자님'이라고 부른다.`}
 
-[지원자 성격]
+${session.track === 'it' ? '모든 지원자는 전산(IT) 직무 지원자다.\n' : ''}[지원자 성격]
 ${turns.map((t) => `- ${t.peer} (${PEERS[t.peer].name}): ${PEERS[t.peer].style}`).join('\n')}
 ${setup ? `\n[${type === 'debate' ? '논제' : '과제'}] ${setup.topic}${setup.userSide ? `\n실제 지원자는 ${side(setup.userSide)} 측, 가상 지원자들은 ${side(setup.peerSide)} 측` : ''}` : ''}
 

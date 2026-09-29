@@ -67,10 +67,14 @@ export const panelRoles = (s: { panel_size: number; interview_type: InterviewTyp
 // 첫인사·마무리처럼 면접을 이끄는 면접관
 export const leadRole = (roles: InterviewerRole[]): InterviewerRole => (roles.includes('exec') ? 'exec' : roles[0]);
 
-// '임원면접 · 다대다 · 면접관 1명 · 영어' 처럼 유형과 형식을 한 줄로
-export function formatLabel(s: { interview_type: InterviewType; with_peers: boolean; panel_size: number; language: string }) {
+// 전산(IT) 직무 지원자에게 주는 평가·질문 관점
+export const IT_TRACK_NOTE = '지원자는 전산(IT) 직무 지원자다. 기술 질문은 기능 나열이 아니라 원리·특징·트레이드오프(왜 빠른지, 언제 쓰면 안 되는지)까지 설명하는지, 업무 문제를 IT로 해결하는 관점이 있는지 본다.';
+
+// '임원면접 · 전산 · 다대다 · 면접관 1명 · 영어' 처럼 유형과 형식을 한 줄로
+export function formatLabel(s: { interview_type: InterviewType; with_peers: boolean; panel_size: number; language: string; track?: string }) {
   return [
     INTERVIEW_TYPE_INFO[s.interview_type]?.label ?? s.interview_type,
+    s.track === 'it' && '전산',
     s.with_peers && !PEER_REQUIRED.includes(s.interview_type) && '다대다',
     s.panel_size === 1 && '면접관 1명',
     s.language === 'en' && '영어',

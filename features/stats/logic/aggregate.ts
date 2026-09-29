@@ -1,4 +1,5 @@
 import type { InterviewType } from '@/lib/constants/interviewTypes';
+import { CRITERIA, type CriterionKey } from '@/lib/constants/criteria';
 
 export type StatSession = { id: string; user_id: string; result: string; interview_type: InterviewType; started_at: string; org: string };
 export type StatAnswer = {
@@ -9,6 +10,7 @@ export type StatAnswer = {
   score_expression: number | null;
   score_timing: number | null;
   org_fit: number | null;
+  criteria?: Partial<Record<CriterionKey, number>> | null;  // 답변 습관 (claude_feedback.criteria)
 };
 
 export const AREAS = [
@@ -33,7 +35,12 @@ export function aggregate(sessions: StatSession[], answers: StatAnswer[]) {
     return { ...a, avg: avg(xs), n: xs.length };
   });
   // 표본이 너무 적은 영역은 약점으로 꼽지 않는다
-  const weakest = areas.filter((a) => a.avg !== null && a.n >= 3).sort((a, b) => a.avg! - b.avg!)[0] ?? null;
+  const weakestOf = <T extends { avg: number | null; n: number }>(xs: T[]) => xs.filter((a) => a.avg !== null && a.n >= 3).sort((a, b) => a.avg! - b.avg!)[0] ?? null;
+  const weakest = weakestOf(areas);
+  const habits = CRITERIA.map((c) => {
+    const xs = own.map((q) => q.criteria?.[c.key]).filter((v): v is number => typeof v === 'number');
+    return { ...c, avg: avg(xs), n: xs.length };
+  });
 
   // 면접별 답변 내용 평균 (오래된 순, 최근 12회)
   const bySession = new Map<string, number[]>();
@@ -63,6 +70,8 @@ export function aggregate(sessions: StatSession[], answers: StatAnswer[]) {
     answered: own.length,
     areas,
     weakest,
+    habits,
+    weakestHabit: weakestOf(habits),
     trend,
     byType: group((s) => s.interview_type),
     byOrg: group((s) => s.org).slice(0, 5),

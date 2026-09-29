@@ -8,6 +8,7 @@ import type { InterviewMode } from '@/lib/constants/modes';
 import { PEERS } from '@/lib/constants/peers';
 import { VIOLATIONS, type ViolationType } from '@/lib/constants/disqualify';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { CRITERIA, type CriterionKey } from '@/lib/constants/criteria';
 
 type ScoreKey = 'score_content' | 'score_fluency' | 'score_eye_contact' | 'score_expression' | 'score_timing';
 const SCORE_GROUPS: { title: string; items: [ScoreKey, string][] }[] = [
@@ -22,6 +23,7 @@ interface Feedback {
   posture?: number | null;
   orgFit?: number | null;
   orgFitReason?: string;
+  criteria?: Record<CriterionKey, number> | null;
   violation?: { type: ViolationType; quote: string; detail: string } | null;
   reasons?: Partial<Record<InterviewerRole, string>> | null;
   voices?: Partial<Record<InterviewerRole, string>> | null;
@@ -37,7 +39,7 @@ const deltaClass = (n: number) =>
 function ScoreBar({ label, value }: { label: string; value: number | null }) {
   return (
     <div className="flex items-center gap-2 text-xs">
-      <span className="w-14 text-neutral-400 shrink-0">{label}</span>
+      <span className="w-16 text-neutral-400 shrink-0">{label}</span>
       <div className="flex-1 h-1.5 rounded-full bg-neutral-800 overflow-hidden">
         {value !== null && <div className="h-full rounded-full" style={{ width: `${value}%`, background: scoreColor(value) }} />}
       </div>
@@ -120,6 +122,8 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
   const fillers = answered.reduce((sum, q) => sum + (q.filler_count ?? 0), 0);
   const postureAvg = avg(answered.map((q) => fbOf(q)?.posture));
   const orgFitAvg = avg(answered.map((q) => fbOf(q)?.orgFit));
+  const criteriaAvg = CRITERIA.map((c) => ({ ...c, value: avg(answered.map((q) => fbOf(q)?.criteria?.[c.key])) }));
+  const weakHabit = criteriaAvg.filter((c) => c.value !== null).sort((a, b) => a.value! - b.value!)[0];
 
   // 문항 번호: 꼬리질문은 부모 번호를 따른다
   const labelOf = new Map<string, string>();
@@ -263,6 +267,17 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
         </section>
       )}
 
+      {/* 답변 습관 (조리·의도 파악·깊이·고민의 단계·구체성) */}
+      {criteriaAvg.some((c) => c.value !== null) && (
+        <section className="bg-neutral-900 rounded-2xl px-4 py-3 flex flex-col gap-2">
+          <h2 className="text-xs text-neutral-500 font-medium tracking-widest">답변 습관</h2>
+          {criteriaAvg.map((c) => <ScoreBar key={c.key} label={c.label} value={c.value} />)}
+          {weakHabit && weakHabit.value! < 60 && (
+            <p className="text-xs text-neutral-300 leading-relaxed mt-1"><span className="text-pink-400">{weakHabit.label}</span> {weakHabit.tip}</p>
+          )}
+        </section>
+      )}
+
       {/* 문항별 리뷰 */}
       {answered.length > 0 && (
         <section className="flex flex-col gap-3">
@@ -390,6 +405,7 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
                             q[key] === null ? null : <ScoreBar key={key} label={label} value={q[key]} />,
                           )}
                           {typeof fb?.posture === 'number' && <ScoreBar label="자세" value={fb.posture} />}
+                          {fb?.criteria && CRITERIA.map((c) => <ScoreBar key={c.key} label={c.label} value={fb.criteria![c.key] ?? null} />)}
                         </div>
                         {(fb?.audio || q.filler_count) && (
                           <p className="text-neutral-500">

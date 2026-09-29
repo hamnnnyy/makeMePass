@@ -82,6 +82,7 @@ export default function SetupPage() {
   const [peerChoice, setPeerChoice] = useState(false);
   const [panelSize, setPanelSize] = useState<1 | 3>(3);
   const [inEnglish, setInEnglish] = useState(false);
+  const [track, setTrack] = useState<'general' | 'it'>('general');
   const [coverLetterFile, setCoverLetterFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [starting, setStarting] = useState(false);
@@ -99,7 +100,7 @@ export default function SetupPage() {
 
   // 토론·토의는 늘 AI 지원자와 함께, PT 는 혼자 발표
   const withPeers = PEER_REQUIRED.includes(interviewType) || (peerChoice && PEER_OPTIONAL.includes(interviewType));
-  const format = { withPeers, panelSize, english: inEnglish };
+  const format = { withPeers, panelSize, english: inEnglish, track };
 
   const canNext =
     (step === 1 && orgId !== null) ||
@@ -190,7 +191,13 @@ export default function SetupPage() {
               </div>
 
               {/* 면접 형식 */}
-              <div className="grid md:grid-cols-3 gap-5">
+              <div className="grid md:grid-cols-2 gap-5">
+                <Choice
+                  title="지원 직무"
+                  value={track}
+                  options={[['general', '사무·일반'], ['it', '전산(IT)']]}
+                  onChange={setTrack}
+                />
                 <Choice
                   title="지원자"
                   value={withPeers}
@@ -276,7 +283,7 @@ export default function SetupPage() {
       <div className="fixed inset-x-0 bottom-0 z-20 bg-night/90 backdrop-blur border-t border-neutral-800">
         <div className="max-w-4xl mx-auto px-6 md:px-8 py-4 flex items-center gap-4">
           <p className="text-sm text-neutral-400 truncate flex-1">
-            {[orgName, mode && `${MODE_LABELS[mode]} 모드`, step === 3 && formatLabel({ interview_type: interviewType, with_peers: withPeers, panel_size: panelSize, language: inEnglish ? 'en' : 'ko' })]
+            {[orgName, mode && `${MODE_LABELS[mode]} 모드`, step === 3 && formatLabel({ interview_type: interviewType, with_peers: withPeers, panel_size: panelSize, language: inEnglish ? 'en' : 'ko', track })]
               .filter(Boolean).join(' · ') || '기관을 골라 주세요'}
           </p>
           {error && <p className="text-xs text-red-400">{error}</p>}

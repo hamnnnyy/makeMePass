@@ -69,11 +69,12 @@ export interface Database {
           disqualification: { type: 'blind' | 'conduct'; quote: string; detail: string; question: string; role: InterviewerRole } | null;  // 실격 사유
           language: 'ko' | 'en';  // 진행 언어, migrations/20260929020000
           with_peers: boolean;  // AI 지원자 참여, migrations/20260929030000
+          track: 'general' | 'it';  // 지원 직무 계열, migrations/20260929040000
           panel_size: 1 | 3;  // 면접관 수
           started_at: string;
           ended_at: string | null;
         };
-        Insert: Omit<Database['public']['Tables']['interview_sessions']['Row'], 'id' | 'started_at' | 'interview_type' | 'group_setup' | 'disqualification' | 'language' | 'with_peers' | 'panel_size'> & { language?: 'ko' | 'en'; with_peers?: boolean; panel_size?: 1 | 3; interview_type?: Database['public']['Tables']['interview_sessions']['Row']['interview_type']; group_setup?: Database['public']['Tables']['interview_sessions']['Row']['group_setup']; disqualification?: Database['public']['Tables']['interview_sessions']['Row']['disqualification'] };
+        Insert: Omit<Database['public']['Tables']['interview_sessions']['Row'], 'id' | 'started_at' | 'interview_type' | 'group_setup' | 'disqualification' | 'language' | 'with_peers' | 'panel_size' | 'track'> & { language?: 'ko' | 'en'; track?: 'general' | 'it'; with_peers?: boolean; panel_size?: 1 | 3; interview_type?: Database['public']['Tables']['interview_sessions']['Row']['interview_type']; group_setup?: Database['public']['Tables']['interview_sessions']['Row']['group_setup']; disqualification?: Database['public']['Tables']['interview_sessions']['Row']['disqualification'] };
         Update: Partial<Database['public']['Tables']['interview_sessions']['Insert']>;
         Relationships: [
           { foreignKeyName: 'interview_sessions_organization_id_fkey'; columns: ['organization_id']; isOneToOne: false; referencedRelation: 'organizations'; referencedColumns: ['id'] },

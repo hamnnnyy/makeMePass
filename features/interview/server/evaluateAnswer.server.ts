@@ -5,10 +5,11 @@ import { MODELS } from '@/lib/gemini/models';
 import { createClient } from '@/lib/supabase/server';
 import { uploadSessionAudio } from '@/lib/storage/uploadBlob';
 import { FOLLOW_UP_OFFSET, MODE_TONE, isClosingQuestion, isIntroQuestion, type AnswerKind } from '@/lib/constants/interview';
-import { INTERVIEW_TYPE_INFO, PEER_REQUIRED, PT_FOLLOW_UPS, PT_TOPIC_PREFIX, panelRoles } from '@/lib/constants/interviewTypes';
+import { INTERVIEW_TYPE_INFO, IT_TRACK_NOTE, PEER_REQUIRED, PT_FOLLOW_UPS, PT_TOPIC_PREFIX, panelRoles } from '@/lib/constants/interviewTypes';
 import { INTERVIEWER_ROLES, type InterviewerRole } from '@/lib/constants/roles';
 import { PEERS } from '@/lib/constants/peers';
 import { VIOLATIONS, type ViolationType } from '@/lib/constants/disqualify';
+import { CRITERIA, type CriterionKey } from '@/lib/constants/criteria';
 import type { InterviewMode } from '@/lib/constants/modes';
 import type { NonVerbalSummary } from '@/features/mediapipe/logic/nonVerbal';
 import type { AudioStats } from '../logic/audio';
@@ -34,6 +35,7 @@ interface Verbal {
   deltas: RoleValues;
   org_fit: number;
   org_fit_reason: string;
+  criteria: Record<CriterionKey, number>;
   violation: { type: 'none' | ViolationType; quote: string; detail: string };
   delta_reasons: Record<InterviewerRole, string>;
   inner_voices: Record<InterviewerRole, string>;
@@ -80,6 +82,12 @@ const VERBAL_SCHEMA = {
       },
       required: ['type', 'quote', 'detail'],
     },
+    criteria: {
+      type: 'object',
+      description: '답변 습관 점수 0-100. 한두 문장으로 끝낸 짧은 답변은 depth·concreteness 를 40 이하로 준다',
+      properties: Object.fromEntries(CRITERIA.map((c) => [c.key, { type: 'integer', minimum: 0, maximum: 100, description: c.rule }])),
+      required: CRITERIA.map((c) => c.key),
+    },
     org_fit: { type: 'integer', minimum: 0, maximum: 100, description: '기관 적합도: 답변이 [기관] 정보의 인재상·핵심가치·주요 사업·최근 현안과 얼마나 맞닿는가. 기관과 무관한 일반론 50, 기관 특징을 구체적으로 연결하면 70 이상, 기관 사업을 잘못 알거나 인재상과 반대되는 태도면 30 이하' },
     org_fit_reason: { type: 'string', description: '기관 적합도 근거 한 문장. 어떤 인재상·가치·사업과 연결됐는지, 또는 무엇이 빠졌는지' },
     strengths: { type: 'string', description: '잘한 점 한 문장' },
@@ -93,7 +101,7 @@ const VERBAL_SCHEMA = {
       required: ['ask', 'role', 'question'],
     },
   },
-  required: ['transcript', 'filler_count', 'score_content', 'score_fluency', 'deltas', 'violation', 'org_fit', 'org_fit_reason', 'delta_reasons', 'inner_voices', 'strengths', 'improvement', 'nonverbal_feedback', 'reaction', 'follow_up'],
+  required: ['transcript', 'filler_count', 'score_content', 'score_fluency', 'deltas', 'violation', 'criteria', 'org_fit', 'org_fit_reason', 'delta_reasons', 'inner_voices', 'strengths', 'improvement', 'nonverbal_feedback', 'reaction', 'follow_up'],
 };
 
 const num = (v: unknown, lo: number, hi: number) =>
@@ -265,7 +273,9 @@ ${isText ? `${nvLine}\n[지원자 답변(텍스트 입력)]\n${answerText}` : `$
 평가 규칙:
 - 실제 공기업 면접처럼 엄격하게. 평범한 답변은 deltas 0 근처, 인상적이면 +, 부실하면 -.
 - 이 기관의 면접이다. 면접관마다 기관 특징을 기준으로 본다: exec 는 인재상·핵심가치·미션 부합, tech 는 주요 사업과 최근 현안 이해, hr 는 조직문화에 맞는 태도. 어느 기관에나 할 수 있는 일반론은 가점하지 않는다.
-- 답변이 없거나 질문과 무관하면 score_content 0~20, deltas는 -8 이하.${solo ? `
+- 답변이 없거나 질문과 무관하면 score_content 0~20, deltas는 -8 이하.
+- 답변 습관(criteria)도 deltas 와 score_content 에 반영한다: 알맹이 없이 돌려 말하거나, 여러 부분을 묻는 질문의 일부만 답하거나, 정의·기능만 나열하고 깊이가 얕거나, 한두 문장으로 짧게 끝내면 감점한다. 고민의 단계(문제 인식 → 원인 → 대안 비교 → 선택 이유)가 드러나면 가점한다.
+- 깊이가 얕은 답변에는 꼬리질문으로 '왜 그런지', '한계는 무엇인지'를 파고든다.${session.track === 'it' ? `\n- ${IT_TRACK_NOTE}` : ''}${solo ? `
 - 면접관은 ${solo} 한 명뿐이다. deltas·delta_reasons·inner_voices 의 ${solo} 항목에 이 면접관의 종합 판단(인성·직무·가치관 모두)을 쓰고, 나머지 항목은 0과 빈 문자열로 둔다. follow_up.role 은 ${solo}.` : ''}${english ? `
 - 영어로 진행하는 면접이다. 답변 내용과 함께 영어 전달력을 본다. 지원자는 영어로 답해야 하고, 한국어로 답하면 score_content 를 크게 깎는다. 짧더라도 논리적으로 완결된 답변을 높이 평가한다.
 - score_fluency 는 영어 발음·유창성·문법·어휘의 정확성과 다양성 기준으로 매긴다.
@@ -335,6 +345,7 @@ ${isText ? `${nvLine}\n[지원자 답변(텍스트 입력)]\n${answerText}` : `$
       // 복기에서 호감도 변화를 '답변 내용' vs '태도·시간 보정'으로 나눠 보여주기 위해 저장
       reasons: v.delta_reasons ?? null,
       orgFit, orgFitReason: v.org_fit_reason ?? '',
+      criteria: v.criteria ? Object.fromEntries(CRITERIA.map((c) => [c.key, int(v.criteria[c.key], 0, 100)])) : null,
       violation: v.violation?.type && v.violation.type !== 'none' ? v.violation : null,
       voices: v.inner_voices ?? null,  // 복기에서 면접관 속마음 말풍선으로 보여준다
       verbalDeltas: {
