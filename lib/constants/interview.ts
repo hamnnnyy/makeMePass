@@ -37,10 +37,16 @@ export const greetingLineEn = (orgName: string) =>
 export const CLOSING_LINE_EN = 'Thank you for your time. We will let you know the result soon.';
 export const ELIMINATED_LINE_EN = "Let's stop the interview here. Thank you.";
 export const PASS_LINE = '수고하셨습니다. 나가보셔도 됩니다.';
+export const PASS_LINE_EN = 'Thank you. That will be all for today.';
 
 // 불합격·결렬 시 가장 낮게 평가한 면접관의 한마디
 export const OBJECTION_LINE: Record<InterviewerRole, string> = {
   hr: '조직에 함께할 모습을 조금 더 보고 싶었습니다.',
   tech: '아직 직무 역량의 깊이가 부족해 보입니다.',
   exec: '우리 기관에 대한 이해가 조금 아쉽습니다.',
+};
+export const OBJECTION_LINE_EN: Record<InterviewerRole, string> = {
+  hr: 'I wanted to see a bit more of how you would work with our team.',
+  tech: 'Your job skills still seem to need more depth.',
+  exec: 'Your understanding of our organization felt a little lacking.',
 };

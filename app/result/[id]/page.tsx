@@ -2,7 +2,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { createClient } from '@/lib/supabase/server';
 import { INTERVIEWER_ROLES, ROLE_LABELS, type InterviewerRole } from '@/lib/constants/roles';
-import { ELIMINATED_LINE, OBJECTION_LINE, PASS_LINE } from '@/lib/constants/interview';
+import { ELIMINATED_LINE, ELIMINATED_LINE_EN, OBJECTION_LINE, OBJECTION_LINE_EN, PASS_LINE, PASS_LINE_EN } from '@/lib/constants/interview';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { DialogueBox } from '@/features/interviewer/components/DialogueBox';
 import { InterviewerPanel } from '@/features/interviewer/components/InterviewerPanel';
@@ -13,7 +13,7 @@ import { getPlayerStats } from '@/features/gamification/server/playerStats';
 import { levelInfo, rankName, sessionXp, ORB_COLORS } from '@/features/gamification/logic/level';
 import { LevelBar } from '@/features/gamification/components/LevelBar';
 import { INTERVIEW_TYPE_INFO } from '@/lib/constants/interviewTypes';
-import { DISQUALIFY_LINE, VIOLATIONS } from '@/lib/constants/disqualify';
+import { DISQUALIFY_LINE, DISQUALIFY_LINE_EN, VIOLATIONS } from '@/lib/constants/disqualify';
 
 const TITLE = {
   pass: '최종 합격',
@@ -73,12 +73,14 @@ export default async function ResultPage({ params }: { params: Promise<{ id: str
     ? [...INTERVIEWER_ROLES.filter((r) => r !== focus).slice(0, 1), focus, ...INTERVIEWER_ROLES.filter((r) => r !== focus).slice(1)]
     : [...INTERVIEWER_ROLES];
 
+  // 영어면접은 면접관 마지막 대사도 영어
+  const en = session.interview_type === 'english';
   const line: [InterviewerRole, string] | null =
     abandoned ? null
-    : result === 'pass' ? ['hr', PASS_LINE]
-    : result === 'fail_eliminate' ? [focus ?? lowest, ELIMINATED_LINE]
-    : result === 'fail_disqualified' && dq ? [dq.role, DISQUALIFY_LINE[dq.type]]
-    : [focus ?? lowest, OBJECTION_LINE[focus ?? lowest]];
+    : result === 'pass' ? ['hr', en ? PASS_LINE_EN : PASS_LINE]
+    : result === 'fail_eliminate' ? [focus ?? lowest, en ? ELIMINATED_LINE_EN : ELIMINATED_LINE]
+    : result === 'fail_disqualified' && dq ? [dq.role, (en ? DISQUALIFY_LINE_EN : DISQUALIFY_LINE)[dq.type]]
+    : [focus ?? lowest, (en ? OBJECTION_LINE_EN : OBJECTION_LINE)[focus ?? lowest]];
 
   const answered = questions ?? [];
   const durations = answered.map((q) => q.duration_seconds).filter((v): v is number => v !== null);
