@@ -55,7 +55,7 @@ export interface VoiceStats {
 }
 
 // ponytail: 판정 기준은 일반 성인 발화 기준 추정치. 실제 녹음이 쌓이면 claude_feedback.voice 로 보정.
-export const VOICE_LIMITS = { pausesPerMin: 12, shortBurstsPerMin: 15, quietDb: -35, endDropDb: 6, monotoneSt: 1.5, tremorPct: 3.5 };
+export const VOICE_LIMITS = { pausesPerMin: 12, shortBurstsPerMin: 15, quietDb: -35, endDropDb: 6, monotoneSt: 1.5, tremorPct: 4 };
 
 const VFRAME = 512;   // 32ms (16kHz)
 const VHOP = 400;     // 25ms
