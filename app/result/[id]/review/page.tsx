@@ -9,6 +9,7 @@ import { PEERS } from '@/lib/constants/peers';
 import { VIOLATIONS, type ViolationType } from '@/lib/constants/disqualify';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { CRITERIA, type CriterionKey } from '@/lib/constants/criteria';
+import { voiceNotes, type VoiceStats } from '@/features/interview/logic/audio';
 
 type ScoreKey = 'score_content' | 'score_fluency' | 'score_eye_contact' | 'score_expression' | 'score_timing';
 const SCORE_GROUPS: { title: string; items: [ScoreKey, string][] }[] = [
@@ -29,6 +30,7 @@ interface Feedback {
   voices?: Partial<Record<InterviewerRole, string>> | null;
   verbalDeltas?: Record<InterviewerRole, number>;
   audio?: { speechSpanSec: number; leadingSilenceSec: number; longestPauseSec: number };
+  voice?: VoiceStats | null;
 }
 
 const scoreColor = (v: number) => (v >= 70 ? '#22c55e' : v >= 40 ? '#f97316' : '#ef4444');
@@ -124,6 +126,11 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
   const postureAvg = avg(answered.map((q) => fbOf(q)?.posture));
   const orgFitAvg = avg(answered.map((q) => fbOf(q)?.orgFit));
   const criteriaAvg = CRITERIA.map((c) => ({ ...c, value: avg(answered.map((q) => fbOf(q)?.criteria?.[c.key])) }));
+  // 목소리: 음성으로 답한 문항 평균
+  const voices = answered.map((q) => fbOf(q)?.voice).filter((v): v is VoiceStats => !!v);
+  const voiceAvg = voices.length ? (Object.fromEntries(
+    (Object.keys(voices[0]) as (keyof VoiceStats)[]).map((k) => [k, Math.round(avg(voices.map((v) => v[k]))! * 10) / 10]),
+  ) as unknown as VoiceStats) : null;
   const weakHabit = criteriaAvg.filter((c) => c.value !== null).sort((a, b) => a.value! - b.value!)[0];
 
   // 문항 번호: 꼬리질문은 부모 번호를 따른다
@@ -279,6 +286,25 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
         </section>
       )}
 
+      {/* 목소리: 공백·절음·크기·말끝·톤·떨림 */}
+      {voiceAvg && (
+        <section className="bg-neutral-900 rounded-2xl px-4 py-3 flex flex-col gap-2 text-xs">
+          <h2 className="text-xs text-neutral-500 font-medium tracking-widest">목소리 <span className="normal-case">(음성 답변 {voices.length}개 평균)</span></h2>
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+            {([
+              ['말 사이 공백', `분당 ${voiceAvg.pausesPerMin}회 · 평균 ${voiceAvg.avgPauseSec}초`],
+              ['끊김(절음)', `짧은 조각 분당 ${voiceAvg.shortBurstsPerMin}개`],
+              ['크기', `${voiceAvg.volumeDb}dB · 말끝 ${voiceAvg.endDropDb > 0 ? `-${voiceAvg.endDropDb}` : '0'}dB`],
+              ['톤', voiceAvg.pitchHz ? `${voiceAvg.pitchHz}Hz · 변화 ${voiceAvg.pitchRangeSt}반음` : '측정 불가'],
+              ['떨림', voiceAvg.pitchHz ? `${voiceAvg.tremorPct}%` : '측정 불가'],
+            ] as const).map(([k, v]) => (
+              <div key={k} className="flex justify-between gap-2"><dt className="text-neutral-400">{k}</dt><dd className="tabular-nums">{v}</dd></div>
+            ))}
+          </dl>
+          <p className="text-neutral-300 leading-relaxed">{voiceNotes(voiceAvg).join(' · ') || '목소리에서 두드러진 문제는 없어요.'}</p>
+        </section>
+      )}
+
       {/* 문항별 리뷰 */}
       {answered.length > 0 && (
         <section className="flex flex-col gap-3">
@@ -417,6 +443,9 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
                               q.filler_count ? `군말 ${q.filler_count}회` : null,
                             ].filter(Boolean).join(' · ')}
                           </p>
+                        )}
+                        {fb?.voice && voiceNotes(fb.voice).length > 0 && (
+                          <p className="text-amber-300/90">목소리 · {voiceNotes(fb.voice).join(' · ')}</p>
                         )}
                       </div>
                     </details>

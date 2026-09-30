@@ -1,6 +1,6 @@
 // 실행: bun features/interview/logic/scoring.check.ts
 import assert from 'node:assert/strict';
-import { analyzeSamples } from './audio';
+import { analyzeSamples, analyzeVoice, voiceNotes, VOICE_LIMITS } from './audio';
 import { scoreNonVerbal, scoreTiming, finalDeltas, applyDeltas, judge, onlyRoles, withOrgFit } from './scoring';
 
 // 오디오: 1초 침묵 + 2초 발화 + 5초 침묵 + 1초 발화
@@ -12,6 +12,21 @@ assert.ok(Math.abs(a.leadingSilenceSec - 1) < 0.1, `leading ${a.leadingSilenceSe
 assert.ok(Math.abs(a.longestPauseSec - 5) < 0.1, `pause ${a.longestPauseSec}`);
 assert.ok(Math.abs(a.speechSpanSec - 8) < 0.1, `span ${a.speechSpanSec}`);
 assert.equal(analyzeSamples(seg(2, 0), rate).speechSpanSec, 0);
+
+// 목소리: 150Hz 톤 (반음 흔들림 없음), 0.6초 말 / 0.6초 쉼 반복, 마지막 1/4은 작게
+const tone = (sec: number, amp: number, hz = 150) => Float32Array.from({ length: sec * rate }, (_, i) => amp * Math.sin((2 * Math.PI * hz * i) / rate));
+const pattern: number[] = [];
+for (let k = 0; k < 12; k++) pattern.push(...tone(0.6, k < 9 ? 0.3 : 0.05), ...seg(0.6, 0));
+const v = analyzeVoice(Float32Array.from(pattern), rate);
+assert.ok(Math.abs(v.pitchHz - 150) <= 3, `pitch ${v.pitchHz}`);
+assert.ok(v.pitchRangeSt < 0.5 && v.tremorPct < 1, `steady tone ${v.pitchRangeSt} ${v.tremorPct}`);
+assert.ok(v.pausesPerMin > 40, `pauses ${v.pausesPerMin}`);
+assert.ok(v.endDropDb > 10, `end drop ${v.endDropDb}`);
+assert.ok(voiceNotes(v).some((n) => n.includes('공백')) && voiceNotes(v).some((n) => n.includes('단조')));
+// 떨림: 150Hz 를 초당 6번 ±6% 로 흔든다 (위상은 이어지게)
+let phase = 0;
+const shaky = Float32Array.from({ length: 3 * rate }, (_, i) => { phase += (2 * Math.PI * 150 * (1 + 0.06 * Math.sin((2 * Math.PI * 6 * i) / rate))) / rate; return 0.3 * Math.sin(phase); });
+assert.ok(analyzeVoice(shaky, rate).tremorPct > VOICE_LIMITS.tremorPct, `tremor ${analyzeVoice(shaky, rate).tremorPct}`);
 
 // 시간: 이상 구간이면 만점, 침묵만 있으면 0, 너무 짧으면 비례 감점
 const ok = { durationSec: 60, leadingSilenceSec: 1, speechSpanSec: 60, longestPauseSec: 1 };

@@ -12,7 +12,7 @@ import { VIOLATIONS, type ViolationType } from '@/lib/constants/disqualify';
 import { CRITERIA, type CriterionKey } from '@/lib/constants/criteria';
 import type { InterviewMode } from '@/lib/constants/modes';
 import type { NonVerbalSummary } from '@/features/mediapipe/logic/nonVerbal';
-import type { AudioStats } from '../logic/audio';
+import { voiceNotes, type AudioStats, type VoiceStats } from '../logic/audio';
 import { scoreNonVerbal, scoreTiming, finalDeltas, applyDeltas, judge, onlyRoles, withOrgFit, type RoleValues } from '../logic/scoring';
 import { orgBrief } from '../logic/orgBrief';
 
@@ -127,7 +127,13 @@ function parseMeta(raw: FormDataEntryValue | null) {
     speechSpanSec: num(m.audio?.speechSpanSec, 0, 600),
     longestPauseSec: num(m.audio?.longestPauseSec, 0, 600),
   };
-  return { nv, audio, hasMeta: !!m.nonVerbal };
+  const v = m.voice;
+  const voice: VoiceStats | null = v ? {
+    pausesPerMin: num(v.pausesPerMin, 0, 300), avgPauseSec: num(v.avgPauseSec, 0, 60), shortBurstsPerMin: num(v.shortBurstsPerMin, 0, 600),
+    volumeDb: num(v.volumeDb, -90, 0), volumeVarDb: num(v.volumeVarDb, 0, 60), endDropDb: num(v.endDropDb, -60, 60),
+    pitchHz: num(v.pitchHz, 0, 500), pitchRangeSt: num(v.pitchRangeSt, 0, 24), tremorPct: num(v.tremorPct, 0, 100),
+  } : null;
+  return { nv, audio, voice, hasMeta: !!m.nonVerbal };
 }
 
 const MAX_AUDIO_BYTES = 8 * 1024 * 1024;
@@ -215,7 +221,8 @@ export async function evaluateAnswer(sessionQuestionId: string, formData: FormDa
   if (!isText && (!(audioFile instanceof File) || audioFile.size === 0)) throw new Error('답변이 없습니다.');
   // 16kHz 모노 WAV 는 초당 32KB → PT 발표 최대 3분이 약 5.8MB. 그보다 크면 조작된 요청으로 본다.
   if (audioFile instanceof File && audioFile.size > MAX_AUDIO_BYTES) throw new Error('답변 녹음이 너무 깁니다.');
-  const { nv, audio, hasMeta } = parseMeta(formData.get('meta'));
+  const { nv, audio, voice: voiceRaw, hasMeta } = parseMeta(formData.get('meta'));
+  const voice = isText ? null : voiceRaw;
   const nvAll = scoreNonVerbal(nv);  // 얼굴이 안 잡혀도 0점으로 반영 (카메라를 피한 것도 평가 대상)
   const nvLine = hasMeta
     ? `[비언어 측정] 얼굴 검출 ${Math.round(nv.presence * 100)}%, ${isText ? '' : `정면 응시 ${Math.round(nv.gazeOnRatio * 100)}%, `}미소 보인 시간 ${Math.round(nv.smileRatio * 100)}%, 미간 찌푸림 ${nv.frownAvg.toFixed(2)}(0.2 이상이면 굳은 인상), 입 굳음 ${nv.tensionAvg.toFixed(2)}(0.25 이상이면 긴장), 자세 안정 ${Math.round(nv.stabilityAvg * 100)}%, 분당 눈 깜빡임 ${Math.round(nv.blinkPerMin)}회(35회 이상이면 긴장)`
@@ -268,7 +275,7 @@ ${sq.peer_turns?.length ? `[이번 차례에 평가 대상보다 먼저 말한 �
 
 ${isText ? `${nvLine}\n[지원자 답변(텍스트 입력)]\n${answerText}` : `${nvLine}
 [측정된 전달 지표]
-- 답변 길이 ${audio.speechSpanSec.toFixed(1)}초, 말 시작까지 ${audio.leadingSilenceSec.toFixed(1)}초, 최장 침묵 ${audio.longestPauseSec.toFixed(1)}초`}
+- 답변 길이 ${audio.speechSpanSec.toFixed(1)}초, 말 시작까지 ${audio.leadingSilenceSec.toFixed(1)}초, 최장 침묵 ${audio.longestPauseSec.toFixed(1)}초${voice ? `\n- 목소리: 말 사이 공백 분당 ${voice.pausesPerMin}회(평균 ${voice.avgPauseSec}초), 0.3초 미만 짧은 조각 분당 ${voice.shortBurstsPerMin}개, 크기 ${voice.volumeDb}dB(변화 ${voice.volumeVarDb}dB), 말끝 ${voice.endDropDb}dB 작아짐, 음높이 ${voice.pitchHz || '측정 불가'}Hz(변화 ${voice.pitchRangeSt}반음), 떨림 ${voice.tremorPct}%\n- 측정 진단: ${voiceNotes(voice).join(', ') || '특이사항 없음'}\n(score_fluency 와 nonverbal_feedback 에 공백·절음·크기·말끝·톤·떨림을 반영한다. 음성을 직접 들어 보고 측정값과 다르면 들은 것을 우선한다.)` : ''}`}
 
 평가 규칙:
 - 실제 공기업 면접처럼 엄격하게. 평범한 답변은 deltas 0 근처, 인상적이면 +, 부실하면 -.
@@ -352,7 +359,7 @@ ${isText ? `${nvLine}\n[지원자 답변(텍스트 입력)]\n${answerText}` : `$
         hr: Math.round(verbalDeltas.hr), tech: Math.round(verbalDeltas.tech), exec: Math.round(verbalDeltas.exec),
       },
       nonVerbal: nv,
-      ...(isText ? {} : { audio }),
+      ...(isText ? {} : { audio, voice }),
     },
     answered_at: new Date().toISOString(),
   }).eq('id', sessionQuestionId);

@@ -16,7 +16,7 @@ import { useTTS } from '@/features/interviewer/tts/useTTS';
 import { useFaceLandmarker } from '@/features/mediapipe/hooks/useFaceLandmarker';
 import { useExpressionMetrics } from '@/features/mediapipe/hooks/useExpressionMetrics';
 import { createTracker, addFrame, summarize } from '@/features/mediapipe/logic/nonVerbal';
-import { analyzeSamples, decodeToMono16k, encodeWav } from '@/features/interview/logic/audio';
+import { analyzeSamples, analyzeVoice, decodeToMono16k, encodeWav } from '@/features/interview/logic/audio';
 import { SelfCam } from '@/features/interview/components/SelfCam';
 import { endSession } from '@/features/interview/server/endSession.server';
 import { evaluateAnswer } from '@/features/interview/server/evaluateAnswer.server';
@@ -212,6 +212,7 @@ export function SessionView({
         fd.append('meta', JSON.stringify({
           nonVerbal: summarize(trackerRef.current),
           audio: analyzeSamples(samples, 16000),
+          voice: analyzeVoice(samples, 16000),
         }));
       }
 
