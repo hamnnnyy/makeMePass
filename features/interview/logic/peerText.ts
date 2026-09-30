@@ -17,3 +17,17 @@ export function stripNames(text: string): string {
   }
   return t.replace(/,\s*\./g, '.').replace(/^[,.\s]+/, '').replace(/\s{2,}/g, ' ').trim();
 }
+
+// 블라인드 면접이라 AI 지원자도 인적사항을 말하면 안 된다. 프롬프트로 막고, 새어 나오면 그 문장을 지운다.
+// "대학 때", "학부 프로젝트" 같은 일반 언급은 실격 규정상 괜찮아서 남긴다.
+const BLIND = [
+  /[가-힣A-Za-z]{2,}(?:대학교|대학원|고등학교|여고|과학고|외고)/,         // 학교 이름
+  /[가-힣]{2,}(?:대|고)\s*(?:출신|졸업|재학|나왔)/,                       // "서울대 출신", "한국고 졸업"
+  /고향|출신 지역|(?:에서|에) (?:태어|자랐)|사는 곳|거주/,               // 출신 지역·거주지
+  /부모님|아버지|어머니|아버님|어머님|형제|자매|외동/,                   // 가족
+  /\d{2}\s*살|\d{2}\s*세|\d{2,4}\s*년생|키가|몸무게/,                    // 나이·신체
+];
+export function stripBlind(text: string): string {
+  const sentences = text.match(/[^.!?…]+[.!?…]*/g) ?? [text];
+  return sentences.filter((s) => !BLIND.some((re) => re.test(s))).join('').replace(/\s{2,}/g, ' ').trim();
+}

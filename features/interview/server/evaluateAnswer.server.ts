@@ -300,20 +300,28 @@ ${isText ? `${nvLine}\n[지원자 답변(텍스트 입력)]\n${answerText}` : `$
       })
     : Promise.resolve(null);
 
-  const response = await generateWithFallback(MODELS.evaluation, {
-    contents: [{
-      role: 'user',
-      parts: [
-        ...(isText || !(audioFile instanceof File) ? [] : [
-          { inlineData: { mimeType: 'audio/wav', data: Buffer.from(await audioFile.arrayBuffer()).toString('base64') } },
-        ]),
-        { text: prompt },
-      ],
-    }],
-    // 정상 응답은 3~5초. flash-lite 가 가끔 응답 없이 멈춰서(실측 15회 중 3회) 기본 20초보다 빨리 다음 모델로 넘긴다
-    config: { responseMimeType: 'application/json', responseJsonSchema: VERBAL_SCHEMA, temperature: 0.3, httpOptions: { timeout: 12_000 } },
-  });
-  const v = JSON.parse(response.text ?? '{}') as Verbal;
+  const parts = [
+    ...(isText || !(audioFile instanceof File) ? [] : [
+      { inlineData: { mimeType: 'audio/wav', data: Buffer.from(await audioFile.arrayBuffer()).toString('base64') } },
+    ]),
+    { text: prompt },
+  ];
+  const evaluate = async (models: readonly string[]) => {
+    const response = await generateWithFallback(models, {
+      contents: [{ role: 'user', parts }],
+      // 정상 응답은 3~5초. flash-lite 가 가끔 응답 없이 멈춰서(실측 15회 중 3회) 기본 20초보다 빨리 다음 모델로 넘긴다
+      config: { responseMimeType: 'application/json', responseJsonSchema: VERBAL_SCHEMA, temperature: 0.3, httpOptions: { timeout: 12_000 } },
+    });
+    return JSON.parse(response.text ?? '{}') as Verbal;
+  };
+  let v = await evaluate(MODELS.evaluation);
+  // 측정상 분명히 말했는데 모델이 받아쓰기를 비우고 '음성 없음'으로 평가하는 경우가 있다 (실측 5회 중 2회).
+  // 같은 음성을 모델만 보내면 매번 받아써서, 긴 프롬프트와 함께일 때의 흔들림으로 보고 다음 모델로 한 번 더 평가한다.
+  if (!isText && audio.speechSpanSec >= 2 && !v.transcript?.trim()) {
+    console.warn('empty transcript with speech, retrying evaluation', { sessionQuestionId, speechSpanSec: audio.speechSpanSec });
+    const retry = await evaluate(MODELS.evaluation.slice(1)).catch(() => null);
+    if (retry?.transcript?.trim()) v = retry;
+  }
 
   // 답변 평가 + 기관 적합도 가감
   const orgFit = typeof v.org_fit === 'number' ? int(v.org_fit, 0, 100) : null;

@@ -6,7 +6,8 @@ import { createClient } from '@/lib/supabase/server';
 import { INTERVIEW_TYPE_INFO, PEER_REQUIRED, SIDE_EN } from '@/lib/constants/interviewTypes';
 import { PEERS, type PeerTurn } from '@/lib/constants/peers';
 import { orgBrief } from '../logic/orgBrief';
-import { stripNames } from '../logic/peerText';
+import { stripBlind, stripNames } from '../logic/peerText';
+import { VIOLATIONS } from '@/lib/constants/disqualify';
 
 // 다대다에서 AI 지원자 답변 수준을 섞는다. 늘 잘하거나 늘 못하면 비교가 안 된다.
 const LEVELS = ['인상적인 답변 (구체적 경험과 수치, 기관 연결)', '평범한 답변 (무난하지만 구체성 부족)', '아쉬운 답변 (추상적이거나 질문 의도와 조금 어긋남)'];
@@ -72,6 +73,7 @@ ${english
   : `실제 사람이 말하듯 구어체 존댓말로, 한 발언은 ${qa ? '20초 안팎(100~170자)' : '15초 안팎(70~130자)'}이고 이 글자 수를 넘기지 않는다.
 누구도 이름을 말하지 않는다. 다른 사람은 ${type === 'debate' ? "'찬성 측 지원자님'처럼 편으로" : "'앞 지원자님'처럼"} 부르고, 평가받는 실제 지원자는 '지원자님'이라고 부른다.`}
 
+블라인드 면접이다. 누구도 ${VIOLATIONS.blind.rule}을 하지 않는다 ('대학 때 프로젝트'처럼 학교 이름 없는 일반 언급은 괜찮다).
 ${session.track === 'it' ? '모든 지원자는 전산(IT) 직무 지원자다.\n' : ''}[지원자 성격]
 ${turns.map((t) => `- ${t.peer} (${PEERS[t.peer].name}): ${PEERS[t.peer].style}`).join('\n')}
 ${setup ? `\n[${type === 'debate' ? '논제' : '과제'}] ${setup.topic}${setup.userSide ? `\n실제 지원자는 ${side(setup.userSide)} 측, 가상 지원자들은 ${side(setup.peerSide)} 측` : ''}` : ''}
@@ -97,7 +99,7 @@ ${turns.map((t, i) => `${i + 1}. ${t.peer}: ${t.guide}`).join('\n')}`;
     },
   });
   const lines = (JSON.parse(res.text ?? '{}') as { lines?: string[] }).lines ?? [];
-  const filled = plan.map((t, i) => ({ ...t, text: trim(stripNames(lines[i] ?? ''), MAX_CHARS[session.language]) || (english ? 'I agree with that.' : '저도 같은 생각입니다.') }));
+  const filled = plan.map((t, i) => ({ ...t, text: trim(stripBlind(stripNames(lines[i] ?? '')), MAX_CHARS[session.language]) || (english ? 'I agree with that.' : '저도 같은 생각입니다.') }));
 
   await supabase.from('session_questions').update({ peer_turns: filled }).eq('id', sessionQuestionId);
   return filled;

@@ -6,6 +6,21 @@ import type { Speaker } from '@/lib/constants/peers';
 import type { InterviewMode } from '@/lib/constants/modes';
 import type { TtsLanguage } from '@/lib/typecast/client';
 
+// 서버 음성 주소 (실패하면 null → 브라우저 음성)
+async function fetchTts(text: string, speaker: Speaker, mode: InterviewMode, language: TtsLanguage, cast: number): Promise<string | null> {
+  try {
+    const res = await fetch('/api/tts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, speaker, mode, language, cast }),
+      signal: AbortSignal.timeout(20_000),
+    });
+    return res.ok ? ((await res.json()) as { src: string | null }).src : null;
+  } catch {
+    return null;
+  }
+}
+
 // 브라우저 음성은 목소리가 하나라 높낮이·빠르기로 사람을 구분한다
 const PITCH: Record<Speaker, number> = { hr: 1.1, tech: 0.9, exec: 0.8, p1: 1.0, p2: 1.35 };
 const RATE: Partial<Record<Speaker, number>> = { p1: 1.15, p2: 1.05 };
@@ -77,8 +92,7 @@ export function useTTS(mode: InterviewMode, language: TtsLanguage = 'kor', cast 
       let src = getCachedAudio(cacheKey) ?? null;
 
       if (!src) {
-        const { ttsSpeak } = await import('./ttsSpeak.server');
-        src = await ttsSpeak(text, role, mode, language, cast).catch(() => null);
+        src = await fetchTts(text, role, mode, language, cast);
         if (src) setCachedAudio(cacheKey, src);
       }
 
@@ -118,8 +132,7 @@ export function useTTS(mode: InterviewMode, language: TtsLanguage = 'kor', cast 
   const prefetch = useCallback(async (text: string, role: Speaker) => {
     const cacheKey = `${mode}:${cast}:${role}:${text}`;
     if (getCachedAudio(cacheKey)) return;
-    const { ttsSpeak } = await import('./ttsSpeak.server');
-    const src = await ttsSpeak(text, role, mode, language, cast).catch(() => null);
+    const src = await fetchTts(text, role, mode, language, cast);
     if (src) setCachedAudio(cacheKey, src);
   }, [mode, language, cast]);
 
